@@ -1,11 +1,11 @@
 # Flight
 
-Local development stack for Docker, serving your projects over trusted HTTPS.
+The local development stack that gives every Docker project a trusted HTTPS domain.
 
-Flight manages a stack of shared services for local development, running them
-as a single Docker Compose project. Today that stack is a
-[Traefik](https://traefik.io) reverse proxy, which routes `*.flght.dev` to your
-project containers over HTTPS using a locally trusted wildcard certificate.
+Flight runs your shared development services and routes every project container
+to a real `https://` URL, using a locally trusted wildcard certificate. Today
+that stack is a [Traefik](https://traefik.io) reverse proxy serving
+`*.flght.dev`.
 
 ## Requirements
 

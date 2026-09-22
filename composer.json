@@ -1,6 +1,6 @@
 {
     "name": "sitepilot/flight",
-    "description": "Local development stack for Docker, serving your projects over trusted HTTPS.",
+    "description": "The local development stack that gives every Docker project a trusted HTTPS domain.",
     "keywords": [
         "cli",
         "docker",
