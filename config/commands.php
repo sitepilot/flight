@@ -90,7 +90,6 @@ return [
         // Replaced by App\Commands\SelfUpdateCommand, which reports a failed
         // update the same way the rest of the application reports errors.
         SelfUpdateCommand::class,
-        //
     ],
 
 ];
