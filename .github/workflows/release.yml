@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and attach the binary
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
