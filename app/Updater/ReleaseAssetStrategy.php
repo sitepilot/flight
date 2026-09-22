@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Updater;
 
 use Humbug\SelfUpdate\Strategy\GithubStrategy;
+use Humbug\SelfUpdate\Updater;
 use LaravelZero\Framework\Components\Updater\Strategy\StrategyInterface;
 
 /**
@@ -27,5 +28,30 @@ class ReleaseAssetStrategy extends GithubStrategy implements StrategyInterface
     public function getPharName(): string
     {
         return 'flight';
+    }
+
+    /**
+     * Packagist reports whatever the tag is called, so a `v1.0.1` release
+     * comes back as "v1.0.1" while the binary was built as "1.0.1".
+     *
+     * The updater compares the two with a plain string inequality, so an
+     * unnormalised prefix means every check reports an update and downloads
+     * the same binary again. The parent has already built the download URL
+     * from the raw tag by the time this returns, so the prefix is only
+     * dropped from the value used for that comparison.
+     */
+    public function getCurrentRemoteVersion(Updater $updater)
+    {
+        return self::normalise(parent::getCurrentRemoteVersion($updater));
+    }
+
+    public function getCurrentLocalVersion(Updater $updater)
+    {
+        return self::normalise(parent::getCurrentLocalVersion($updater));
+    }
+
+    private static function normalise(?string $version): ?string
+    {
+        return $version === null ? null : preg_replace('/^v/', '', $version);
     }
 }

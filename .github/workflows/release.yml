@@ -1,23 +1,26 @@
 name: Release
 
-# Tags are unprefixed (1.0.1, not v1.0.1) so that the tag, the version baked
-# into the binary, and the version Packagist reports are all the same string.
-# self-update compares them directly.
+# Fires when a release is published from the GitHub UI. The tag name is the
+# version; a leading "v" is stripped before it is baked into the binary, and
+# App\Updater\ReleaseAssetStrategy strips it on both sides of the update
+# check, so either tag style works.
 on:
-  push:
-    tags: ['[0-9]+.[0-9]+.[0-9]+']
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Build and publish
+    name: Build and attach the binary
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out the repository
+      - name: Check out the released tag
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -32,21 +35,28 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress --no-dev
 
-      - name: Build the binary
-        run: php flight app:build flight --build-version=${{ github.ref_name }} --no-interaction
+      - name: Resolve the version from the tag
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify the binary reports the tagged version
+      - name: Build the binary
+        run: php flight app:build flight --build-version=${{ steps.version.outputs.value }} --no-interaction
+
+      - name: Verify the binary reports the released version
         run: |
+          want='${{ steps.version.outputs.value }}'
           built=$(./builds/flight --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          if [ "$built" != "${{ github.ref_name }}" ]; then
-            echo "Built version '$built' does not match tag '${{ github.ref_name }}'" >&2
+          if [ "$built" != "$want" ]; then
+            echo "Built version '$built' does not match release '$want'." >&2
             exit 1
           fi
 
       # The asset must be named "flight": App\Updater\ReleaseAssetStrategy
-      # downloads <repo>/releases/download/<tag>/flight.
-      - name: Publish the release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: builds/flight
-          generate_release_notes: true
+      # downloads <repo>/releases/download/<tag>/flight. --clobber keeps a
+      # re-run idempotent.
+      - name: Attach the binary to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ github.event.release.tag_name }}' builds/flight --clobber
