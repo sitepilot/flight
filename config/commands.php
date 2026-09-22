@@ -5,6 +5,7 @@ use Illuminate\Console\Scheduling\ScheduleListCommand;
 use Illuminate\Console\Scheduling\ScheduleRunCommand;
 use Illuminate\Foundation\Console\VendorPublishCommand;
 use LaravelZero\Framework\Commands\StubPublishCommand;
+use LaravelZero\Framework\Components\Updater\SelfUpdateCommand;
 use NunoMaduro\LaravelConsoleSummary\SummaryCommand;
 use Symfony\Component\Console\Command\DumpCompletionCommand;
 use Symfony\Component\Console\Command\HelpCommand;
@@ -86,6 +87,9 @@ return [
     */
 
     'remove' => [
+        // Replaced by App\Commands\SelfUpdateCommand, which reports a failed
+        // update the same way the rest of the application reports errors.
+        SelfUpdateCommand::class,
         //
     ],
 

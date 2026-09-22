@@ -1,0 +1,52 @@
+name: Release
+
+# Tags are unprefixed (1.0.1, not v1.0.1) so that the tag, the version baked
+# into the binary, and the version Packagist reports are all the same string.
+# self-update compares them directly.
+on:
+  push:
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, openssl, pcntl
+          coverage: none
+
+      # app:build only switches the app to production mode; it does not strip
+      # dev dependencies, and box bundles whatever is in vendor. Installing
+      # without them roughly halves the binary.
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress --no-dev
+
+      - name: Build the binary
+        run: php flight app:build flight --build-version=${{ github.ref_name }} --no-interaction
+
+      - name: Verify the binary reports the tagged version
+        run: |
+          built=$(./builds/flight --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          if [ "$built" != "${{ github.ref_name }}" ]; then
+            echo "Built version '$built' does not match tag '${{ github.ref_name }}'" >&2
+            exit 1
+          fi
+
+      # The asset must be named "flight": App\Updater\ReleaseAssetStrategy
+      # downloads <repo>/releases/download/<tag>/flight.
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/flight
+          generate_release_notes: true

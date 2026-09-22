@@ -131,7 +131,9 @@ abstract class FlightCommand extends Command
      */
     protected function wrap(string $message, int $width): array
     {
-        return explode("\n", wordwrap($message, $width, "\n", true));
+        // Trimmed: a trailing space would count toward the row width and
+        // push the panel's right border out of line.
+        return array_map('trim', explode("\n", wordwrap($message, $width, "\n", true)));
     }
 
     /**

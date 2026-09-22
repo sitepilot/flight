@@ -23,6 +23,7 @@
         "illuminate/validation": "^13.32",
         "laravel-zero/foundation": "^13.23",
         "laravel-zero/framework": "^13.0",
+        "laravel-zero/phar-updater": "^1.4",
         "symfony/yaml": "^8.1"
     },
     "require-dev": {

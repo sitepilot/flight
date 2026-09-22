@@ -131,6 +131,41 @@ networks:
 > key to `flight`, or set `network: traefik` in `config.yaml` to keep the old
 > name.
 
+## Updating
+
+```bash
+flight self-update
+```
+
+Checks Packagist for a newer `sitepilot/flight` release and replaces the
+binary in place, so the file needs to be writable — fine under
+`~/.local/bin`, `sudo` under `/usr/local/bin`. The command only exists in the
+built binary; from a source checkout, pull the repository instead.
+
+## Releasing
+
+Releases are cut by pushing an unprefixed semver tag:
+
+```bash
+git tag 1.0.1
+git push origin 1.0.1
+```
+
+The `Release` workflow builds the binary with that version baked in, checks
+the two match, and publishes it as a release asset named `flight`. Three
+things have to stay in step for `self-update` to work, and the workflow
+enforces the first two:
+
+| Thing | Must be |
+| ----- | ------- |
+| Git tag | `1.0.1` — unprefixed, so it matches Packagist's version string |
+| Built binary | reports the same version (`flight --version`) |
+| Release asset | named `flight` |
+
+Version discovery goes through Packagist, so the package must be published
+there as `sitepilot/flight` with the GitHub repository as its source. Until
+it is, `self-update` reports that it could not check for a new version.
+
 ## Development
 
 ```bash
