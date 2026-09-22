@@ -1,4 +1,4 @@
-# Flight
+# ✈️ Flight
 
 A fast, effortless HTTPS development environment for your Docker projects.
 
@@ -13,7 +13,7 @@ Flight runs your shared development services as a single stack, routed by
 
 - Docker with the Compose plugin
 - [mkcert](https://github.com/FiloSottile/mkcert) (`mkcert.exe` when running under WSL)
-- PHP 8.4.1 or newer (the binary is a PHAR, so PHP runs it)
+- PHP 8.4.1 or newer
 
 ## Installation
 
@@ -31,28 +31,15 @@ Make sure `~/.local/bin` is in your `PATH`, then check it is working:
 flight --version
 ```
 
-From there, `flight self-update` keeps it current.
-
-### From source
+## Updating
 
 ```bash
-git clone git@github.com:sitepilot/flight.git
-cd flight
-composer install
-./flight stack:up
+flight self-update
 ```
 
-Running `./flight` from the checkout is the development workflow. Building a
-binary is only needed to exercise the packaged behaviour, such as
-`self-update`:
-
-```bash
-php flight app:build flight --build-version=1.0.0
-```
-
-Note that `app:build` writes the version it is given back into
-`config/app.php`, so pass one deliberately rather than leaving it to the
-prompt.
+The binary is replaced in place, so it needs to be writable — fine under
+`~/.local/bin`, `sudo` under `/usr/local/bin`. Only the released binary can
+update itself; from a source checkout, pull the repository instead.
 
 ## Usage
 
@@ -64,12 +51,7 @@ flight stack:secure    # regenerate the wildcard certificate and restart
 flight stack:config    # edit the configuration in $EDITOR
 ```
 
-`stack:config` opens `config.yaml` in `$VISUAL`, `$EDITOR`, or the first of
-`nano`, `vim` and `vi` it finds, then validates what you saved. It works while
-Docker is down and while the file is invalid, so it can always be used to fix a
-broken configuration.
-
-Pass `-v` to any of them to stream the raw `docker compose` output instead of a
+Pass `-v` to any command to stream the raw `docker compose` output instead of a
 spinner, which is what you want when a start fails.
 
 The Traefik dashboard is available at `https://traefik.flght.dev`.
@@ -155,51 +137,34 @@ networks:
     external: true
 ```
 
-> **Upgrading from the bash version:** the shared network is now called
-> `flight` rather than `traefik`. A project still declaring
-> `networks: { traefik: { external: true } }` fails to start with
-> `network traefik not found`, which does not mention Flight at all. Rename the
-> key to `flight`, or set `network: traefik` in `config.yaml` to keep the old
-> name.
-
-## Updating
-
-```bash
-flight self-update
-```
-
-Checks Packagist for a newer `sitepilot/flight` release and replaces the
-binary in place, so the file needs to be writable — fine under
-`~/.local/bin`, `sudo` under `/usr/local/bin`. The command only exists in the
-built binary; from a source checkout, pull the repository instead.
-
-## Releasing
-
-Releases are cut by pushing an unprefixed semver tag:
-
-```bash
-git tag 1.0.1
-git push origin 1.0.1
-```
-
-The `Release` workflow builds the binary with that version baked in, checks
-the two match, and publishes it as a release asset named `flight`. Three
-things have to stay in step for `self-update` to work, and the workflow
-enforces the first two:
-
-| Thing | Must be |
-| ----- | ------- |
-| Git tag | `1.0.1` — unprefixed, so it matches Packagist's version string |
-| Built binary | reports the same version (`flight --version`) |
-| Release asset | named `flight` |
-
-Version discovery goes through Packagist, so the package must be published
-there as `sitepilot/flight` with the GitHub repository as its source. Until
-it is, `self-update` reports that it could not check for a new version.
-
 ## Development
+
+```bash
+git clone git@github.com:sitepilot/flight.git
+cd flight
+composer install
+./flight stack:up
+```
+
+`./flight` runs straight from the checkout.
 
 ```bash
 composer test   # pest
 composer lint   # pint
 ```
+
+To build a binary:
+
+```bash
+php flight app:build flight --build-version=1.0.0
+```
+
+### Releasing
+
+Publish a release from the GitHub releases page with a tag in the form
+`v1.0.0`. The `Release` workflow builds the binary and attaches it to the
+release.
+
+## License
+
+Flight is open-sourced software licensed under the [MIT license](LICENSE.md).
