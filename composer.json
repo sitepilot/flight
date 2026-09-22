@@ -1,13 +1,14 @@
 {
     "name": "sitepilot/flight",
-    "description": "Local HTTPS development proxy, powered by Traefik and Docker.",
+    "description": "Local development stack for Docker, serving your projects over trusted HTTPS.",
     "keywords": [
         "cli",
         "docker",
         "traefik",
-        "proxy",
         "https",
-        "local development"
+        "proxy",
+        "local development",
+        "development environment"
     ],
     "homepage": "https://github.com/sitepilot/flight",
     "type": "project",

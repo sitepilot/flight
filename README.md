@@ -1,9 +1,11 @@
 # Flight
 
-Local HTTPS development proxy, powered by [Traefik](https://traefik.io) and Docker.
+Local development stack for Docker, serving your projects over trusted HTTPS.
 
-Flight runs a Traefik container that routes `*.flght.dev` to your project
-containers over HTTPS, using a locally trusted wildcard certificate.
+Flight manages a stack of shared services for local development, running them
+as a single Docker Compose project. Today that stack is a
+[Traefik](https://traefik.io) reverse proxy, which routes `*.flght.dev` to your
+project containers over HTTPS using a locally trusted wildcard certificate.
 
 ## Requirements
 
@@ -68,7 +70,7 @@ docker_socket: /var/run/docker.sock
 
 | Key             | Default                | Description                             |
 | --------------- | ---------------------- | --------------------------------------- |
-| `domain`        | `flght.dev`            | Wildcard domain for the proxy           |
+| `domain`        | `flght.dev`            | Wildcard domain the stack serves        |
 | `network`       | `flight`               | Shared Docker network projects join     |
 | `http_port`     | `80`                   | Host port bound to HTTP                 |
 | `https_port`    | `443`                  | Host port bound to HTTPS                |
