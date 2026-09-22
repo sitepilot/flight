@@ -6,8 +6,8 @@ Every project gets its own trusted `https://` domain. No ports to remember, no
 certificate warnings, no hosts file to edit. Start it once and forget it is
 running.
 
-Flight runs your shared development services as a single stack. Today that is a
-[Traefik](https://traefik.io) reverse proxy serving `*.flght.dev`.
+Flight runs your shared development services as a single stack, routed by
+[Traefik](https://traefik.io) on `*.flght.dev`.
 
 ## Requirements
 
