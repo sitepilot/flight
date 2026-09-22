@@ -19,7 +19,7 @@
         }
     ],
     "require": {
-        "php": "^8.3",
+        "php": "^8.4.1",
         "illuminate/validation": "^13.32",
         "laravel-zero/foundation": "^13.23",
         "laravel-zero/framework": "^13.0",

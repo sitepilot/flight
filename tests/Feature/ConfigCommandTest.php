@@ -2,6 +2,7 @@
 
 use App\Exceptions\FlightException;
 use App\Support\Editor;
+use App\Support\Executable;
 use Illuminate\Support\Facades\Process;
 
 /**
@@ -93,19 +94,33 @@ it('still reports an invalid file when nothing was changed', function () {
 });
 
 it('runs the resolved editor against the file', function () {
-    withEditorEnv(null, 'vi', fn () => (new Editor)->open('/tmp/some-config.yaml'));
+    withEditorEnv(null, PHP_BINARY, fn () => (new Editor)->open('/tmp/some-config.yaml'));
 
-    Process::assertRan(['vi', '/tmp/some-config.yaml']);
+    Process::assertRan([PHP_BINARY, '/tmp/some-config.yaml']);
 });
 
 it('prefers VISUAL over EDITOR', function () {
-    expect(withEditorEnv('vi', 'nano', fn () => (new Editor)->command()))->toBe(['vi']);
+    expect(withEditorEnv(PHP_BINARY, 'nano', fn () => (new Editor)->command()))->toBe([PHP_BINARY]);
 });
 
 it('keeps arguments given in EDITOR', function () {
-    expect(withEditorEnv(null, 'vi --noplugin', fn () => (new Editor)->command()))->toBe(['vi', '--noplugin']);
+    expect(withEditorEnv(null, PHP_BINARY.' --noplugin', fn () => (new Editor)->command()))->toBe([PHP_BINARY, '--noplugin']);
 });
 
 it('explains when EDITOR points at something missing', function () {
     withEditorEnv(null, 'definitely-not-an-editor', fn () => (new Editor)->command());
 })->throws(FlightException::class, 'not found in your PATH');
+
+it('resolves a bare command name against PATH', function () {
+    // PHP_BINARY is the one executable guaranteed to exist while the suite
+    // runs, which keeps this independent of what the machine has installed.
+    $original = getenv('PATH');
+    putenv('PATH='.dirname(PHP_BINARY));
+
+    try {
+        expect(Executable::exists(basename(PHP_BINARY)))->toBeTrue()
+            ->and(Executable::exists('definitely-not-a-binary'))->toBeFalse();
+    } finally {
+        putenv("PATH={$original}");
+    }
+});

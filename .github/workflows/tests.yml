@@ -1,0 +1,79 @@
+name: Tests
+
+on:
+  push:
+    branches: [1.x]
+  pull_request:
+    branches: [1.x]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The range composer.json declares support for (php ^8.4.1).
+        php: ['8.4', '8.5']
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # openssl backs the certificate checks, pcntl the spinner.
+          extensions: mbstring, openssl, pcntl
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Determine Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      # Docker is never invoked — the suite fakes the process layer — but the
+      # `docker` binary must exist on PATH, which ubuntu-latest provides.
+      - name: Run tests
+        run: ./vendor/bin/pest
+
+  lint:
+    name: Code style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Check code style
+        run: ./vendor/bin/pint --test

@@ -9,7 +9,7 @@ containers over HTTPS, using a locally trusted wildcard certificate.
 
 - Docker with the Compose plugin
 - [mkcert](https://github.com/FiloSottile/mkcert) (`mkcert.exe` when running under WSL)
-- PHP 8.3 or newer, to build the binary
+- PHP 8.4.1 or newer, to build the binary
 
 ## Installation
 
