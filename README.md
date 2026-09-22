@@ -13,19 +13,46 @@ Flight runs your shared development services as a single stack, routed by
 
 - Docker with the Compose plugin
 - [mkcert](https://github.com/FiloSottile/mkcert) (`mkcert.exe` when running under WSL)
-- PHP 8.4.1 or newer, to build the binary
+- PHP 8.4.1 or newer (the binary is a PHAR, so PHP runs it)
 
 ## Installation
 
+Download the latest release into a directory on your `PATH`:
+
 ```bash
-git clone https://github.com/sitepilot/flight.git
-cd flight
-composer install
-php flight app:build flight --build-version=1.0.0
-cp builds/flight ~/.local/bin/flight
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/sitepilot/flight/releases/latest/download/flight -o ~/.local/bin/flight
+chmod +x ~/.local/bin/flight
 ```
 
-Make sure `~/.local/bin` is in your `PATH`.
+Make sure `~/.local/bin` is in your `PATH`, then check it is working:
+
+```bash
+flight --version
+```
+
+From there, `flight self-update` keeps it current.
+
+### From source
+
+```bash
+git clone git@github.com:sitepilot/flight.git
+cd flight
+composer install
+./flight stack:up
+```
+
+Running `./flight` from the checkout is the development workflow. Building a
+binary is only needed to exercise the packaged behaviour, such as
+`self-update`:
+
+```bash
+php flight app:build flight --build-version=1.0.0
+```
+
+Note that `app:build` writes the version it is given back into
+`config/app.php`, so pass one deliberately rather than leaving it to the
+prompt.
 
 ## Usage
 
