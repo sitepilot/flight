@@ -1,0 +1,62 @@
+{
+    "name": "sitepilot/flight",
+    "description": "Local HTTPS development proxy, powered by Traefik and Docker.",
+    "keywords": [
+        "cli",
+        "docker",
+        "traefik",
+        "proxy",
+        "https",
+        "local development"
+    ],
+    "homepage": "https://github.com/sitepilot/flight",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Nick Jansen",
+            "email": "n.jansen@sitepilot.nl"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/validation": "^13.32",
+        "laravel-zero/foundation": "^13.23",
+        "laravel-zero/framework": "^13.0",
+        "symfony/yaml": "^8.1"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.30.4",
+        "mockery/mockery": "^1.6.12",
+        "pestphp/pest": "^4.7.8 || ^5.0.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "bin": [
+        "flight"
+    ],
+    "scripts": {
+        "test": "pest",
+        "lint": "pint"
+    }
+}
