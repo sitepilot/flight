@@ -125,3 +125,55 @@ it('runs the provisioning steps after starting the project', function () {
         ->and($commands)->toHaveCount(3)
         ->and(Artisan::output())->toContain('Greet (skipped)');
 });
+
+it('destroys the project containers and volumes', function () {
+    $this->artisan('destroy --force')->assertExitCode(0);
+
+    expect($this->commands)->toHaveCount(1)
+        ->and($this->commands[0])->toContain('-p flight-myapp')
+        ->toEndWith('down --volumes --remove-orphans');
+});
+
+it('removes the data in .flight but keeps the user files', function () {
+    mkdir($this->project.'/.flight/php/data', 0755, true);
+    file_put_contents($this->project.'/.flight/php/data/index.php', '<?php');
+    file_put_contents($this->project.'/.flight/compose.override.yaml', "services: {}\n");
+    file_put_contents($this->project.'/.flight/.env', "TOKEN=secret\n");
+
+    $this->withoutMockingConsoleOutput()->artisan('destroy --force');
+
+    expect(Artisan::output())->toContain('Kept your compose.override.yaml and .env in .flight.')
+        ->and($this->project.'/.flight/php')->not->toBeDirectory()
+        ->and($this->project.'/.flight/compose.yaml')->not->toBeFile()
+        ->and($this->project.'/.flight/compose.override.yaml')->toBeFile()
+        ->and($this->project.'/.flight/.env')->toBeFile()
+        // Still keeps .env out of git.
+        ->and($this->project.'/.flight/.gitignore')->toBeFile();
+});
+
+it('removes .flight entirely when it holds no user files', function () {
+    $this->artisan('destroy --force')->assertExitCode(0);
+
+    expect($this->project.'/.flight')->not->toBeDirectory()
+        ->and($this->project.'/flight.yaml')->toBeFile();
+});
+
+it('asks before destroying', function () {
+    mkdir($this->project.'/.flight/php/data', 0755, true);
+
+    $this->artisan('destroy')
+        ->expectsConfirmation("Remove myapp's containers, volumes and data? Its database and files in .flight are lost.", 'no')
+        ->assertExitCode(0);
+
+    Process::assertNothingRan();
+
+    expect($this->project.'/.flight/php/data')->toBeDirectory();
+});
+
+it('destroys after confirming', function () {
+    $this->artisan('destroy')
+        ->expectsConfirmation("Remove myapp's containers, volumes and data? Its database and files in .flight are lost.", 'yes')
+        ->assertExitCode(0);
+
+    expect($this->commands[0])->toEndWith('down --volumes --remove-orphans');
+});

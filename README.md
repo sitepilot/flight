@@ -108,6 +108,7 @@ Run these from anywhere inside a project:
 | `flight up`     | Starts the Flight stack when needed, then the project, then runs its [provisioning](#provisioning) steps |
 | `flight down`   | Stops the project; the Flight stack keeps running              |
 | `flight restart`| Recreates the project's containers                             |
+| `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `compose.override.yaml` and `.env`. |
 
 These manage the Flight stack itself:
 
@@ -448,11 +449,7 @@ at the host `mariadb`. Its data is kept in a Docker volume, so it survives
 | `password` | `flight` | The password for that user and for `root` |
 
 The database, user and password are only set on the very first start. To start
-over with an empty database, remove the volume from the project folder:
-
-```bash
-docker compose -p flight-<project> down -v
-```
+over with an empty database, run `flight destroy` and then `flight up`.
 
 ### Traefik
 

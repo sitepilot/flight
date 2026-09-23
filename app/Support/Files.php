@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Exceptions\FlightException;
+use Illuminate\Filesystem\Filesystem;
 
 /**
  * Writes files and directories, reporting failures as a FlightException
@@ -20,6 +21,26 @@ class Files
             throw FlightException::make(
                 "Could not create {$directory}.",
                 'Check that you have permission to write there.',
+            );
+        }
+    }
+
+    public static function deleteDirectory(string $directory): void
+    {
+        if (! (new Filesystem)->deleteDirectory($directory)) {
+            throw FlightException::make(
+                "Could not remove {$directory}.",
+                'Check that you have permission to delete it.',
+            );
+        }
+    }
+
+    public static function delete(string $path): void
+    {
+        if (! @unlink($path)) {
+            throw FlightException::make(
+                "Could not remove {$path}.",
+                'Check that you have permission to delete it.',
             );
         }
     }

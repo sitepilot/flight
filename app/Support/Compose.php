@@ -38,6 +38,14 @@ class Compose
         $this->run($stack, ['down', '--remove-orphans'], $output);
     }
 
+    /**
+     * Stop the stack and remove its volumes, such as a database's data.
+     */
+    public function destroy(Stack $stack, ?Closure $output = null): void
+    {
+        $this->run($stack, ['down', '--volumes', '--remove-orphans'], $output);
+    }
+
     public function recreate(Stack $stack, ?Closure $output = null): void
     {
         $this->run($stack, ['up', '-d', '--remove-orphans', '--force-recreate'], $output);
