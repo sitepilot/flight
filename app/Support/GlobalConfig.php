@@ -185,13 +185,8 @@ class GlobalConfig
             'https_port' => ['required', 'integer', 'between:1,65535', 'different:http_port'],
             'docker_socket' => ['required', 'string'],
         ], [
-            'required' => 'Expected :attribute to be set.',
-            'string' => 'Expected :attribute to be text.',
-            'integer' => 'Expected :attribute to be a whole number.',
-            'between' => 'Expected :attribute to be between :min and :max.',
             'domain.regex' => 'Expected a hostname such as "flght.dev".',
             'network.regex' => 'Expected a Docker network name such as "flight".',
-            'https_port.different' => 'http_port and https_port must differ.',
         ], attributes: array_combine($keys, $keys));
 
         if ($validator->fails()) {

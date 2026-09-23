@@ -94,7 +94,7 @@ abstract class ProjectService extends Service
     protected function allRules(): array
     {
         return static::routes()
-            ? [...$this->rules(), 'hostnames' => ['array', 'list'], 'hostnames.*' => ['string', 'regex:'.self::LABEL]]
+            ? [...$this->rules(), 'hostnames' => ['list'], 'hostnames.*' => ['string', 'regex:'.self::LABEL]]
             : $this->rules();
     }
 
@@ -185,11 +185,8 @@ abstract class ProjectService extends Service
         $keys = array_keys($this->allRules());
 
         $validator = Validator::make($options, $this->allRules(), [
-            'required' => 'Expected :attribute to be set.',
-            'string' => 'Expected :attribute to be text.',
+            // The built-in message does not list the allowed values.
             'in' => 'Expected :attribute to be one of: :values.',
-            'array' => 'Expected :attribute to be a list.',
-            'list' => 'Expected :attribute to be a list.',
             'hostnames.*.regex' => 'Expected a lowercase subdomain such as "admin", which becomes admin.'.$this->config->domain().'.',
             ...$this->messages(),
         ], attributes: array_combine($keys, array_map(fn (string $key): string => "services.{$this->name}.{$key}", $keys)));

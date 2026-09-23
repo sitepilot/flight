@@ -72,7 +72,7 @@ it('rejects identical http and https ports', function () {
     expect(fn () => flightSettings()->load())->toThrow(function (FlightException $e) {
         expect($e->getMessage())->toContain('Invalid "https_port"')
             // The hint explains what is wrong.
-            ->and($e->hint())->toContain('must differ');
+            ->and($e->hint())->toContain('must be different');
     });
 });
 
