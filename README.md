@@ -204,7 +204,7 @@ Run WP-CLI in the container, e.g. `docker exec -it flight-myapp-php-1 wp plugin 
 
 To develop a theme or plugin, keep its repository as the project and place it
 inside WordPress with the PHP service's `project_path`. WordPress itself is then
-kept in `.flight/php/data`:
+kept in `.flight/php/data`. A [provisioning](#provisioning) step activates it:
 
 ```yaml
 recipe: wordpress
@@ -214,11 +214,6 @@ services:
     project_path: wp-content/themes/my-theme   # or wp-content/plugins/my-plugin
 
 provision:
-  - name: Build theme
-    service: php
-    dir: wp-content/themes/my-theme
-    run: npm run build
-
   - name: Activate theme
     service: php
     run: wp theme activate my-theme
@@ -245,8 +240,19 @@ provision:
 | `service` | The service to run it in                                     |
 | `run`     | Shell command, run as the container's user                   |
 | `unless`  | Optional check; when it exits 0 the step is skipped as done  |
-| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `assets` |
+| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `tools` |
 | `env`     | Optional variables the step needs, see [Secrets](#secrets)   |
+
+A step runs in the service's working directory, which for PHP is the app. Use
+`dir` to run it somewhere else, such as a folder with its own dependencies:
+
+```yaml
+provision:
+  - name: Install tool dependencies
+    service: php
+    dir: tools
+    run: composer install
+```
 
 Since steps run on every `flight up`, give each one an `unless` check, or make
 the command itself safe to repeat. A failing step stops `flight up` and shows
