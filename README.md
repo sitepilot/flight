@@ -155,9 +155,10 @@ optional:
 recipe: laravel
 ```
 
-| Recipe    | Services                        |
-| --------- | ------------------------------- |
-| `laravel` | `php`, served from `public/`    |
+| Recipe      | Services                                                     |
+| ----------- | ------------------------------------------------------------ |
+| `laravel`   | `php`, served from `public/`                                 |
+| `wordpress` | `php` with WP-CLI and `mariadb`; installs WordPress, see below |
 
 Services in `flight.yaml` are merged over the recipe's, option by option, so you
 only list what differs. Mappings are merged key by key, lists such as
@@ -181,8 +182,24 @@ its options:
 
 ```yaml
 recipe:
-  laravel: {}   # the same as `recipe: laravel`
+  wordpress:
+    admin_user: nick
 ```
+
+#### WordPress
+
+The first `flight up` downloads WordPress into the project root, writes
+`wp-config.php` for the `mariadb` service and installs the site at the project
+URL. Each step is skipped once done, so later runs leave the site alone.
+
+| Option           | Default             | Description             |
+| ---------------- | ------------------- | ----------------------- |
+| `title`          | the project name    | Site title              |
+| `admin_user`     | `admin`             | Administrator username  |
+| `admin_password` | `admin`             | Administrator password  |
+| `admin_email`    | `admin@<domain>`    | Administrator email     |
+
+Run WP-CLI in the container, e.g. `docker exec -it flight-myapp-php-1 wp plugin list`.
 
 ### Provisioning
 
@@ -285,10 +302,30 @@ with the project mounted at `/var/www/html`.
 | `version` | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                  |
 | `server`  | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`            |
 | `webroot` | `public`    | Document root relative to the project; `.` for the root |
+| `extensions` | none     | Extra PHP extensions, such as `[mysqli, gd]`         |
+| `wp_cli`  | `false`     | Install [WP-CLI](https://wp-cli.org) as `wp`         |
 | `hostnames` | none      | Extra subdomains to serve, see [Hostnames](#hostnames) |
 
 The image is built with your user and group id, so files the container writes
-stay yours.
+stay yours. Extensions are installed with serversideup's
+`install-php-extensions` when the image is built.
+
+### MariaDB
+
+Runs [MariaDB](https://mariadb.org) with its data in a named volume, so it
+survives `flight down`. Other services reach it at its service name, e.g.
+`mariadb`. `flight up` waits until it accepts connections.
+
+| Option     | Default  | Description                              |
+| ---------- | -------- | ---------------------------------------- |
+| `version`  | `11.8`   | `10.6`, `10.11`, `11.4` or `11.8`        |
+| `database` | `flight` | Database created on first start          |
+| `user`     | `flight` | User with access to that database        |
+| `password` | `flight` | Password of that user, and of `root`     |
+
+The database, user and password only apply when the volume is first
+created. To start over, remove it with `docker compose -p flight-myapp down -v`
+from the project root.
 
 ## Exposing a project manually
 

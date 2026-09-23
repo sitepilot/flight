@@ -116,7 +116,7 @@ it('lists the supported versions', function () {
 it('rejects an unknown option', function () {
     expect(invalidPhp(['verison' => '8.3']))
         ->toContain('Invalid "services.php.verison"')
-        ->toContain('Expected one of: version, server, webroot, hostnames.');
+        ->toContain('Expected one of: version, server, webroot, extensions, wp_cli, hostnames.');
 });
 
 it('rejects an unknown service type', function () {
@@ -202,4 +202,32 @@ it('leaves options a recipe does not set to the service defaults', function () {
     expect($php['build']['context'])->toBe('./.flight/php')
         ->and(file_get_contents(getcwd().'/.flight/php/Dockerfile'))->toContain('serversideup/php:8.4-fpm-nginx')
         ->and($php['environment']['NGINX_WEBROOT'])->toBe('/var/www/html/public');
+});
+
+it('installs extensions and wp-cli in the image when asked', function () {
+    flightProject(['services' => ['php' => ['extensions' => ['mysqli', 'gd'], 'wp_cli' => true]]]);
+
+    writeProjectCompose();
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/Dockerfile');
+
+    expect($dockerfile)->toContain("RUN install-php-extensions mysqli gd\n")
+        ->and($dockerfile)->toContain('ADD --chmod=755 https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar /usr/local/bin/wp')
+        // Installed as root, before switching back.
+        ->and(strpos($dockerfile, 'install-php-extensions'))->toBeLessThan(strpos($dockerfile, 'USER www-data'));
+});
+
+it('adds neither by default', function () {
+    flightProject();
+
+    writeProjectCompose();
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/Dockerfile');
+
+    expect($dockerfile)->not->toContain('install-php-extensions')
+        ->and($dockerfile)->not->toContain('wp-cli');
+});
+
+it('rejects an extension name that is not one', function () {
+    expect(invalidPhp(['extensions' => ['mysqli; rm -rf /']]))
+        ->toContain('Invalid "services.php.extensions.0"')
+        ->toContain('Expected an extension name');
 });

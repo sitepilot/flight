@@ -2,6 +2,8 @@
 
 use App\Recipes\Laravel;
 use App\Recipes\Proxy;
+use App\Recipes\WordPress;
+use App\Services\MariaDB;
 use App\Services\Php;
 use App\Services\Traefik;
 
@@ -59,6 +61,7 @@ return [
     'services' => [
         'traefik' => Traefik::class,
         'php' => Php::class,
+        'mariadb' => MariaDB::class,
     ],
 
     /*
@@ -73,6 +76,7 @@ return [
     'recipes' => [
         'proxy' => Proxy::class,
         'laravel' => Laravel::class,
+        'wordpress' => WordPress::class,
     ],
 
 ];

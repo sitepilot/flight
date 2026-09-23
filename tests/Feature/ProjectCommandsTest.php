@@ -123,5 +123,5 @@ it('runs the provisioning steps after starting the project', function () {
     expect($commands[1])->toEndWith('up -d --wait')
         ->and($commands[2])->toEndWith('exec -T php sh -c test -f greeted')
         ->and($commands)->toHaveCount(3)
-        ->and(Artisan::output())->toContain('Greet (already done)');
+        ->and(Artisan::output())->toContain('Greet (skipped)');
 });

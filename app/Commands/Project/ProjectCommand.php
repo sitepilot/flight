@@ -23,7 +23,7 @@ abstract class ProjectCommand extends FlightCommand
         foreach ($steps as $step) {
             $ran = $this->running($step->name, fn ($output) => $provisioner->run($stack, $step, $output));
 
-            $ran ? $this->step($step->name) : $this->skipped($step->name.' (already done)');
+            $ran ? $this->step($step->name) : $this->skipped($step->name.' (skipped)');
         }
     }
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Provisioning;
 
+use App\Exceptions\FlightException;
+use App\Services\Service;
 use App\Stacks\ProjectStack;
 use App\Support\GlobalConfig;
 
@@ -20,6 +22,17 @@ class Context
     public function project(): string
     {
         return $this->stack->project()->name();
+    }
+
+    public function service(string $name): Service
+    {
+        foreach ($this->stack->services() as $service) {
+            if ($service->name() === $name) {
+                return $service;
+            }
+        }
+
+        throw FlightException::make("The project has no \"{$name}\" service.");
     }
 
     public function domain(): string
