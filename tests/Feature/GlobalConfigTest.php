@@ -22,7 +22,7 @@ it('reads settings from config.yaml', function () {
 });
 
 it('takes the global services from the proxy recipe', function () {
-    expect(flightSettings()->recipe())->toBe('proxy')
+    expect(flightSettings()->recipe()->name())->toBe('proxy')
         ->and(flightSettings()->services())->toBe(['traefik' => ['type' => 'traefik']]);
 });
 

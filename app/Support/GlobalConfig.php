@@ -102,7 +102,7 @@ class GlobalConfig extends StackConfig
         }
     }
 
-    protected function recipeName(array $settings): ?string
+    protected function recipeSetting(array $settings): mixed
     {
         return config('flight.recipe');
     }

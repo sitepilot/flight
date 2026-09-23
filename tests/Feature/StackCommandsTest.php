@@ -30,7 +30,7 @@ beforeEach(function () {
 it('starts the stack with the ported up flags', function () {
     $this->artisan('stack:up')->assertExitCode(0);
 
-    assertComposeRan('up -d', fn ($command) => str_contains($command, '--project-directory '.$this->flightDirectory)
+    assertComposeRan('up -d --wait', fn ($command) => str_contains($command, '--project-directory '.$this->flightDirectory)
         && str_contains($command, '-f '.$this->flightDirectory.'/compose.yaml'));
 });
 
@@ -57,7 +57,7 @@ it('reissues the certificate and restarts on secure', function () {
 it('leaves the override file out when there is none', function () {
     $this->artisan('stack:up')->assertExitCode(0);
 
-    assertComposeRan('up -d', fn ($command) => ! str_contains($command, 'compose.override.yaml'));
+    assertComposeRan('up -d --wait', fn ($command) => ! str_contains($command, 'compose.override.yaml'));
 });
 
 it('includes the override file when it exists', function () {
@@ -65,7 +65,7 @@ it('includes the override file when it exists', function () {
 
     $this->artisan('stack:up')->assertExitCode(0);
 
-    assertComposeRan('up -d', fn ($command) => str_contains(
+    assertComposeRan('up -d --wait', fn ($command) => str_contains(
         $command,
         '-f '.$this->flightDirectory.'/compose.override.yaml'
     ));
@@ -113,7 +113,7 @@ it('surfaces the docker output when compose fails', function () {
     Process::fake(function ($process) {
         $command = implode(' ', (array) $process->command);
 
-        return str_contains($command, 'compose') && str_ends_with($command, 'up -d')
+        return str_contains($command, 'compose') && str_ends_with($command, 'up -d --wait')
             ? Process::result(errorOutput: 'network flight not found', exitCode: 1)
             : Process::result('');
     });

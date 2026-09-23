@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands\Project;
 
+use App\Provisioning\Provisioner;
 use App\Stacks\GlobalStack;
 use App\Stacks\ProjectStack;
 use App\Support\Certificate;
@@ -15,10 +16,11 @@ class UpCommand extends ProjectCommand
 
     protected $description = 'Start the project in the current directory';
 
-    public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate): int
+    public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate, Provisioner $provisioner): int
     {
         // Report mistakes in flight.yaml before anything is started.
         $stack->validate();
+        $steps = $provisioner->steps($stack);
 
         $this->step(sprintf(
             'Certificate %s for %s',
@@ -38,6 +40,8 @@ class UpCommand extends ProjectCommand
             'Project started',
             fn ($output) => $compose->up($stack, $output),
         );
+
+        $this->provision($provisioner, $stack, $steps);
 
         $this->projectSummary('Project running', $stack);
 

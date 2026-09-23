@@ -106,7 +106,7 @@ it('reports a yaml syntax error', function () {
 it('takes the services from a recipe', function () {
     flightProject(['recipe' => 'laravel']);
 
-    expect(project()->recipe())->toBe('laravel')
+    expect(project()->recipe()->name())->toBe('laravel')
         ->and(project()->services())->toBe([
             'php' => ['type' => 'php', 'webroot' => 'public'],
         ]);
@@ -158,3 +158,40 @@ it('asks for services or a recipe', function () {
 
     throw new RuntimeException('Expected flight.yaml to be rejected.');
 });
+
+it('accepts a recipe written as a mapping without options', function () {
+    flightProject("recipe:\n  laravel:\n");
+
+    expect(project()->recipe()->name())->toBe('laravel');
+});
+
+it('rejects a recipe that is neither a name nor one mapping', function (mixed $recipe) {
+    flightProject(['recipe' => $recipe]);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "recipe"');
+})->with([
+    'list' => [['laravel']],
+    'two recipes' => [['laravel' => null, 'proxy' => null]],
+]);
+
+it('rejects recipe options that are not a mapping', function () {
+    flightProject(['recipe' => ['laravel' => 'yes']]);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "recipe.laravel"');
+});
+
+it('rejects an option the recipe does not have', function () {
+    flightProject(['recipe' => ['laravel' => ['admin' => 'nick']]]);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "recipe.laravel.admin"');
+});
+
+it('rejects an invalid provision step', function (mixed $provision, string $key) {
+    flightProject(['services' => ['php' => null], 'provision' => $provision]);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, "Invalid \"{$key}\"");
+})->with([
+    'not a list' => [['name' => 'Install'], 'provision'],
+    'missing command' => [[['name' => 'Install', 'service' => 'php']], 'provision.0.run'],
+    'unknown key' => [[['name' => 'Install', 'service' => 'php', 'run' => 'true', 'user' => 'root']], 'provision.0'],
+]);

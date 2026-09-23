@@ -6,7 +6,7 @@ namespace App\Services;
 
 use App\Stacks\Stack;
 use App\Support\GlobalConfig;
-use Illuminate\Support\Facades\Validator;
+use App\Support\HasOptions;
 
 /**
  * One service in a stack's compose file, built from its options in
@@ -18,14 +18,13 @@ use Illuminate\Support\Facades\Validator;
  */
 abstract class Service
 {
+    use HasOptions;
+
     /**
      * A single DNS label, since the wildcard certificate covers only one
      * level under the domain.
      */
     public const string LABEL = '/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/';
-
-    /** @var array<string, mixed> */
-    protected array $options;
 
     /**
      * @param  array<string, mixed>  $options
@@ -39,15 +38,12 @@ abstract class Service
     ) {
         unset($options['type']);
 
-        // An empty option falls back to its default.
-        $options = [...$this->allDefaults(), ...array_filter($options, fn ($value) => $value !== null)];
-
         // Allow `hostnames: shop` as well as a list.
-        if (static::routes() && is_string($options['hostnames'])) {
+        if (static::routes() && is_string($options['hostnames'] ?? null)) {
             $options['hostnames'] = [$options['hostnames']];
         }
 
-        $this->options = $this->validate($this->normalize($options));
+        $this->configure($stack->config(), "services.{$name}", $options);
     }
 
     /**
@@ -59,32 +55,6 @@ abstract class Service
     abstract public function definition(): array;
 
     /**
-     * @return array<string, mixed>
-     */
-    protected function defaults(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function rules(): array
-    {
-        return [];
-    }
-
-    /**
-     * Messages for rules that need specific wording, e.g. "webroot.regex".
-     *
-     * @return array<string, string>
-     */
-    protected function messages(): array
-    {
-        return [];
-    }
-
-    /**
      * Whether the proxy serves this service over HTTPS. Static, because the
      * stack needs to know before it builds the service.
      */
@@ -93,25 +63,9 @@ abstract class Service
         return false;
     }
 
-    /**
-     * Adjust parsed YAML values before validation.
-     *
-     * @param  array<string, mixed>  $options
-     * @return array<string, mixed>
-     */
-    protected function normalize(array $options): array
-    {
-        return $options;
-    }
-
     public function name(): string
     {
         return $this->name;
-    }
-
-    protected function option(string $key): mixed
-    {
-        return $this->options[$key];
     }
 
     /**
@@ -209,45 +163,13 @@ abstract class Service
     }
 
     /**
-     * @param  array<string, mixed>  $options
-     * @return array<string, mixed>
+     * @return array<string, string>
      */
-    protected function validate(array $options): array
+    protected function allMessages(): array
     {
-        $config = $this->stack->config();
-
-        $unknown = array_diff_key($options, $this->allDefaults());
-
-        if ($unknown !== []) {
-            $key = (string) array_key_first($unknown);
-
-            throw $config->invalid(
-                $this->allDefaults() === []
-                    ? 'Expected no options.'
-                    : 'Expected one of: '.implode(', ', array_keys($this->allDefaults())).'.',
-                "services.{$this->name}.{$key}",
-            );
-        }
-
-        // Name attributes after their YAML path, e.g. "services.php.version".
-        $keys = array_keys($this->allRules());
-
-        $validator = Validator::make($options, $this->allRules(), [
-            // The built-in message does not list the allowed values.
-            'in' => 'Expected :attribute to be one of: :values.',
+        return [
             'hostnames.*.regex' => 'Expected a lowercase subdomain such as "admin", which becomes admin.'.$this->global->domain().'.',
             ...$this->messages(),
-        ], attributes: array_combine($keys, array_map(fn (string $key): string => "services.{$this->name}.{$key}", $keys)));
-
-        if ($validator->fails()) {
-            $key = (string) array_key_first($validator->errors()->messages());
-
-            throw $config->invalid(
-                (string) $validator->errors()->first($key),
-                "services.{$this->name}.{$key}",
-            );
-        }
-
-        return $options;
+        ];
     }
 }

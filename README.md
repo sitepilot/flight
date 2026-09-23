@@ -144,6 +144,7 @@ the project name: `name` from `flight.yaml`, or the directory name when unset.
 | `name`     | the directory name  | Project name, and the subdomain it is served on |
 | `recipe`   | none                | A preset stack, see [Recipes](#recipes)      |
 | `services` |                     | The services to run, see [Services](#services) |
+| `provision` | none               | Commands to run on `flight up`, see [Provisioning](#provisioning) |
 
 ### Recipes
 
@@ -174,6 +175,39 @@ services:
 
 A recipe's services can be changed but not removed. Options a recipe leaves
 out, such as the PHP version, use the service defaults.
+
+A recipe can have options of its own. Set them by mapping the recipe's name to
+its options:
+
+```yaml
+recipe:
+  laravel: {}   # the same as `recipe: laravel`
+```
+
+### Provisioning
+
+Steps run in the project's containers on every `flight up`, once the project
+has started. A recipe can bring its own steps, and `provision` adds yours,
+which run after the recipe's:
+
+```yaml
+provision:
+  - name: Install dependencies
+    service: php
+    run: composer install
+    unless: test -d vendor
+```
+
+| Key       | Description                                                  |
+| --------- | ------------------------------------------------------------ |
+| `name`    | Shown while the step runs                                    |
+| `service` | The service to run it in                                     |
+| `run`     | Shell command, run as the container's user                   |
+| `unless`  | Optional check; when it exits 0 the step is skipped as done  |
+
+Since steps run on every `flight up`, give each one an `unless` check, or make
+the command itself safe to repeat. A failing step stops `flight up` and shows
+its output.
 
 ### Hostnames
 

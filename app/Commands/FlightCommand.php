@@ -64,17 +64,28 @@ abstract class FlightCommand extends Command
         }
     }
 
+    protected function skipped(string $message): void
+    {
+        $this->line("  <fg=gray>– {$message}</>");
+    }
+
     /**
-     * Run a compose action behind a spinner, or stream its output with -v.
+     * Run an action behind a spinner, or stream its output with -v.
      */
-    protected function composing(string $running, string $done, callable $action): void
+    protected function running(string $message, callable $action): mixed
     {
         if ($this->output->isVerbose()) {
             $this->line('');
-            $action(fn ($type, $buffer) => $this->output->write($buffer));
-        } else {
-            spin(fn () => $action(null), $running.'…');
+
+            return $action(fn ($type, $buffer) => $this->output->write($buffer));
         }
+
+        return spin(fn () => $action(null), $message.'…');
+    }
+
+    protected function composing(string $running, string $done, callable $action): void
+    {
+        $this->running($running, $action);
 
         $this->step($done);
     }

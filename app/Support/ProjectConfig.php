@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Exceptions\FlightException;
+use App\Provisioning\Step;
 use Illuminate\Support\Str;
 
 /**
@@ -123,7 +124,17 @@ class ProjectConfig extends StackConfig
         return $routed === 0 ? $this->name() : $this->name().'-'.$service;
     }
 
-    protected function recipeName(array $settings): ?string
+    /**
+     * The steps listed under `provision`.
+     *
+     * @return array<int, Step>
+     */
+    public function provision(): array
+    {
+        return array_map(Step::fromArray(...), $this->load()['provision'] ?? []);
+    }
+
+    protected function recipeSetting(array $settings): mixed
     {
         return $settings['recipe'] ?? null;
     }
@@ -139,8 +150,15 @@ class ProjectConfig extends StackConfig
     {
         return [
             'name' => ['required', 'string', 'regex:/^[a-z0-9][a-z0-9-]*$/'],
-            'recipe' => ['nullable', 'string', 'in:'.implode(',', $this->recipes())],
+            // Checked when the recipe is built.
+            'recipe' => ['nullable'],
             'services' => ['nullable', 'required_without:recipe', 'array'],
+            'provision' => ['nullable', 'list'],
+            'provision.*' => ['array:name,service,run,unless'],
+            'provision.*.name' => ['required', 'string'],
+            'provision.*.service' => ['required', 'string'],
+            'provision.*.run' => ['required', 'string'],
+            'provision.*.unless' => ['nullable', 'string'],
         ];
     }
 
@@ -149,16 +167,9 @@ class ProjectConfig extends StackConfig
         return [
             'name.required' => 'Expected name to be set, or the directory name to contain a letter or digit.',
             'name.regex' => 'Expected a lowercase name such as "myapp"; it becomes myapp.<domain>.',
-            'recipe.in' => 'Expected recipe to be one of: '.implode(', ', $this->recipes()).'.',
             'services.required_without' => 'Expected services to list at least one service, such as `php: {}`, or a recipe such as "laravel".',
+            'provision.list' => 'Expected provision to be a list of steps.',
+            'provision.*.array' => 'Expected a step with name, service, run and optionally unless.',
         ];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    protected function recipes(): array
-    {
-        return array_keys((array) config('flight.recipes'));
     }
 }

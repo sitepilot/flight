@@ -21,6 +21,8 @@ abstract class StackConfig
     /** @var array<string, mixed>|null */
     protected ?array $settings = null;
 
+    protected ?Recipe $recipe = null;
+
     public function __construct(protected Container $container) {}
 
     abstract public function file(): string;
@@ -55,9 +57,12 @@ abstract class StackConfig
     abstract protected function rules(): array;
 
     /**
+     * The recipe as written: a name, a mapping of one name to its options,
+     * or null.
+     *
      * @param  array<string, mixed>  $settings
      */
-    abstract protected function recipeName(array $settings): ?string;
+    abstract protected function recipeSetting(array $settings): mixed;
 
     /**
      * @return array<string, string>
@@ -119,9 +124,11 @@ abstract class StackConfig
         return false;
     }
 
-    public function recipe(): ?string
+    public function recipe(): ?Recipe
     {
-        return $this->load()['recipe'];
+        $this->load();
+
+        return $this->recipe;
     }
 
     /**
@@ -155,10 +162,10 @@ abstract class StackConfig
 
         $this->validate($settings);
 
-        $recipe = $this->recipeName($settings);
+        $this->recipe = $this->makeRecipe($this->recipeSetting($settings));
 
         $merged = $this->merge(
-            $recipe === null ? [] : $this->makeRecipe($recipe)->services(),
+            $this->recipe?->services() ?? [],
             (array) ($settings['services'] ?? []),
         );
 
@@ -171,7 +178,7 @@ abstract class StackConfig
             $services[$name] = ['type' => $name, ...(array) $options];
         }
 
-        return $this->settings = [...$settings, 'recipe' => $recipe, 'services' => $services];
+        return $this->settings = [...$settings, 'services' => $services];
     }
 
     /**
@@ -196,9 +203,32 @@ abstract class StackConfig
         return (array) $parsed;
     }
 
-    protected function makeRecipe(string $name): Recipe
+    protected function makeRecipe(mixed $setting): ?Recipe
     {
-        return $this->container->make(config('flight.recipes')[$name]);
+        if ($setting === null) {
+            return null;
+        }
+
+        if (is_string($setting)) {
+            [$name, $options] = [$setting, []];
+        } elseif ($this->isMap($setting) && count($setting) === 1) {
+            $name = (string) array_key_first($setting);
+            $options = $setting[$name] ?? [];
+        } else {
+            throw $this->invalid('Expected a recipe such as "laravel", or one recipe with its options, such as `laravel: {}`.', 'recipe');
+        }
+
+        $recipes = (array) config('flight.recipes');
+
+        if (! isset($recipes[$name])) {
+            throw $this->invalid('Expected recipe to be one of: '.implode(', ', array_keys($recipes)).'.', 'recipe');
+        }
+
+        if (! $this->isMap($options)) {
+            throw $this->invalid('Expected a mapping of options.', "recipe.{$name}");
+        }
+
+        return $this->container->make($recipes[$name], ['config' => $this, 'name' => $name, 'options' => $options]);
     }
 
     /**
@@ -239,15 +269,17 @@ abstract class StackConfig
     {
         $rules = ['services' => ['nullable', 'array'], ...$this->rules()];
 
+        $topLevel = array_filter(array_keys($rules), fn (string $key): bool => ! str_contains($key, '.'));
+
         foreach (array_keys($settings) as $key) {
-            if (! isset($rules[$key])) {
-                throw $this->invalid('Expected one of: '.implode(', ', array_keys($rules)).'.', (string) $key);
+            if (! in_array($key, $topLevel, true)) {
+                throw $this->invalid('Expected one of: '.implode(', ', $topLevel).'.', (string) $key);
             }
         }
 
         // Name attributes after the YAML keys, e.g. "http_port" instead of
-        // "http port".
-        $keys = array_keys($rules);
+        // "http port". Wildcard keys already show their path.
+        $keys = array_filter(array_keys($rules), fn (string $key): bool => ! str_contains($key, '*'));
 
         $validator = Validator::make($settings, $rules, [
             'services.array' => 'Expected services to be a mapping, such as `php: {}`.',

@@ -27,10 +27,10 @@ it('starts the flight stack and then the project', function () {
 
     expect($commands)->toHaveCount(2)
         ->and($commands[0])->toContain('-p flight -f '.$this->flightDirectory.'/compose.yaml')
-        ->and($commands[0])->toEndWith('up -d')
+        ->and($commands[0])->toEndWith('up -d --wait')
         ->and($commands[1])->toContain('--project-directory '.$this->project.' -p flight-myapp')
         ->and($commands[1])->toContain('-f '.$this->project.'/.flight/compose.yaml')
-        ->and($commands[1])->toEndWith('up -d');
+        ->and($commands[1])->toEndWith('up -d --wait');
 });
 
 it('shows the project url once running', function () {
@@ -102,4 +102,26 @@ it('serves a recipe project and names the recipe', function () {
     expect(Artisan::output())->toContain('Recipe')
         ->toContain('laravel')
         ->toContain('https://myapp.flght.dev');
+});
+
+it('runs the provisioning steps after starting the project', function () {
+    file_put_contents($this->project.'/flight.yaml', <<<'YAML'
+        services:
+          php: {}
+        provision:
+          - name: Greet
+            service: php
+            run: echo hello
+            unless: test -f greeted
+        YAML);
+
+    $this->withoutMockingConsoleOutput()->artisan('up');
+
+    $commands = $this->commands->getArrayCopy();
+
+    // Process::fake succeeds, so the check passes and the step is skipped.
+    expect($commands[1])->toEndWith('up -d --wait')
+        ->and($commands[2])->toEndWith('exec -T php sh -c test -f greeted')
+        ->and($commands)->toHaveCount(3)
+        ->and(Artisan::output())->toContain('Greet (already done)');
 });

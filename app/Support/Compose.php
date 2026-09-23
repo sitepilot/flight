@@ -28,7 +28,9 @@ class Compose
 
     public function up(Stack $stack, ?Closure $output = null): void
     {
-        $this->run($stack, ['up', '-d'], $output);
+        // Wait until the containers run, or are healthy when they have a
+        // healthcheck, so provisioning steps can use them.
+        $this->run($stack, ['up', '-d', '--wait'], $output);
     }
 
     public function down(Stack $stack, ?Closure $output = null): void
@@ -50,6 +52,29 @@ class Compose
 
         $this->scaffold->write($stack);
 
+        $result = $this->process($stack, $arguments, $output);
+
+        if ($result->failed()) {
+            throw $this->explain($result, 'docker compose '.implode(' ', $arguments).' failed.');
+        }
+
+        return $result;
+    }
+
+    /**
+     * Run a shell command in a running service. Returns the result instead
+     * of throwing, since a failing check is not an error.
+     */
+    public function exec(Stack $stack, string $service, string $command, ?Closure $output = null): ProcessResult
+    {
+        return $this->process($stack, ['exec', '-T', $service, 'sh', '-c', $command], $output, timeout: 3600);
+    }
+
+    /**
+     * @param  array<int, string>  $arguments
+     */
+    protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300): ProcessResult
+    {
         // Always pass the project name, so COMPOSE_PROJECT_NAME in a stray
         // .env can't rename the stack.
         $command = [
@@ -63,15 +88,9 @@ class Compose
             $command[] = $file;
         }
 
-        $result = Process::env($stack->environment())
-            ->timeout(300)
+        return Process::env($stack->environment())
+            ->timeout($timeout)
             ->run([...$command, ...$arguments], $output);
-
-        if ($result->failed()) {
-            throw $this->explain($result, 'docker compose '.implode(' ', $arguments).' failed.');
-        }
-
-        return $result;
     }
 
     /**
