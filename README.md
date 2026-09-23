@@ -451,6 +451,24 @@ at the host `mariadb`. Its data is kept in a Docker volume, so it survives
 The database, user and password are only set on the very first start. To start
 over with an empty database, run `flight destroy` and then `flight up`.
 
+### Valkey
+
+Runs [Valkey](https://valkey.io), a Redis-compatible store for caches, queues
+and sessions. Other services connect to it at the host `valkey`, port `6379`.
+Its data is kept in a Docker volume, so it survives `flight down`.
+
+```yaml
+services:
+  valkey: {}
+```
+
+| Option    | Default | What it is                              |
+| --------- | ------- | --------------------------------------- |
+| `version` | `9.1`   | `7.2`, `8.0`, `8.1`, `9.0` or `9.1`     |
+
+Apps that talk to Redis work unchanged. In Laravel, for example, set
+`REDIS_HOST=valkey`.
+
 ### Traefik
 
 The proxy in the Flight stack. You don't add it to a project; it is configured

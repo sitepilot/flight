@@ -6,6 +6,7 @@ use App\Recipes\WordPress;
 use App\Services\MariaDB;
 use App\Services\Php;
 use App\Services\Traefik;
+use App\Services\Valkey;
 
 return [
 
@@ -62,6 +63,7 @@ return [
         'traefik' => Traefik::class,
         'php' => Php::class,
         'mariadb' => MariaDB::class,
+        'valkey' => Valkey::class,
     ],
 
     /*
