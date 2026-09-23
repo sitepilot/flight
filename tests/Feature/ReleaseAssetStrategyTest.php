@@ -11,7 +11,7 @@ function strategy(): ReleaseAssetStrategy
 
 function updater(): Updater
 {
-    // Any real file will do; nothing here performs an update.
+    // Any existing file works, since nothing is updated.
     return new Updater(__FILE__, false);
 }
 
@@ -23,8 +23,8 @@ it('compares versions with the tag prefix removed', function (string $tag) {
     $strategy = strategy();
     $strategy->setCurrentLocalVersion($tag);
 
-    // The updater compares these with a plain string inequality, so a stray
-    // "v" on one side would report an update on every single check.
+    // The updater compares versions as strings, so a leftover "v" would
+    // report an update on every check.
     expect($strategy->getCurrentLocalVersion(updater()))->toBe('1.0.1');
 })->with(['unprefixed' => '1.0.1', 'prefixed' => 'v1.0.1']);
 
@@ -34,8 +34,7 @@ it('keeps the raw tag in the download url', function (string $tag) {
     $base = new ReflectionClass(GithubStrategy::class);
     $base->getProperty('remoteVersion')->setValue($strategy, $tag);
 
-    // The URL has to match the tag GitHub actually created, prefix and all,
-    // even though the comparison above drops it.
+    // The URL must still use the tag as GitHub created it, "v" included.
     expect($base->getMethod('getDownloadUrl')->invoke($strategy, [
         'source' => ['url' => 'https://github.com/sitepilot/flight.git'],
     ]))->toBe("https://github.com/sitepilot/flight/releases/download/{$tag}/flight");

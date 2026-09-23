@@ -3,8 +3,7 @@
 use App\Support\Certificate;
 
 /**
- * Issue a self-signed certificate for the given SANs without going near
- * mkcert, so the validity checks can be tested in isolation.
+ * Issue a self-signed certificate for the given SANs without mkcert.
  */
 function writeCertificate(array $domains, int $days = 30): void
 {
@@ -58,8 +57,6 @@ it('accepts a wildcard certificate for the configured domain', function () {
 it('rejects a certificate issued for a different domain', function () {
     writeCertificate(['*.other.dev']);
 
-    // The bash version only checked that the files existed, so changing the
-    // domain silently left a mismatched certificate in place.
     expect(app(Certificate::class)->isValidFor('flght.dev'))->toBeFalse();
 });
 
@@ -68,9 +65,8 @@ it('rejects an expired certificate', function () {
     $config = flightSettings();
     $config->scaffold();
 
-    // A fixture rather than a generated certificate: OpenSSL 3.0 cannot
-    // backdate one, and this isolates expiry from the SAN check because the
-    // fixture's SAN does cover *.flght.dev.
+    // A fixture, because OpenSSL 3.0 can't backdate a certificate. Its SAN
+    // covers *.flght.dev, so only the expiry fails.
     copy(__DIR__.'/../Fixtures/expired.crt', $config->certificateFile());
     file_put_contents($config->keyFile(), 'not read when the dates fail');
 
@@ -86,8 +82,7 @@ it('rejects a non wildcard certificate for the domain', function () {
 it('does not reissue when the certificate is already valid', function () {
     writeCertificate(['*.flght.dev']);
 
-    // ensure() would have to shell out to mkcert to issue; reaching that
-    // point in a test environment would fail loudly.
+    // Issuing would run mkcert, which fails in tests.
     expect(app(Certificate::class)->ensure())->toBeFalse();
 });
 

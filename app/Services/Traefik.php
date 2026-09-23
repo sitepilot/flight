@@ -8,8 +8,8 @@ use App\Support\GlobalConfig;
 use App\Support\YamlFile;
 
 /**
- * The reverse proxy: a single Traefik container terminating TLS for
- * *.<domain> and routing to any container on the shared network.
+ * The reverse proxy. Terminates TLS for *.<domain> and routes to containers
+ * on the shared network.
  */
 class Traefik extends Service
 {
@@ -54,8 +54,7 @@ class Traefik extends Service
                 $this->config->dockerSocket().':/var/run/docker.sock',
             ],
             'labels' => [
-                // Required: the Docker provider runs with exposedByDefault=false,
-                // so without this the dashboard router is never registered.
+                // Needed for the dashboard, since exposedByDefault is false.
                 'traefik.enable' => 'true',
                 'traefik.http.services.traefik.loadbalancer.server.port' => '8080',
                 'traefik.http.routers.traefik.rule' => "Host(`traefik.{$domain}`)",
@@ -64,10 +63,9 @@ class Traefik extends Service
     }
 
     /**
-     * The shared network is the project's default network, renamed. Declaring
-     * it as a second network instead would leave every Flight service on two
-     * networks for no benefit, and would not match the labels Docker has
-     * already written for an existing `flight` network.
+     * The shared network is this stack's default network under another name.
+     * Adding it as a second network would put Traefik on two networks for no
+     * benefit.
      */
     public function networks(): array
     {
@@ -82,8 +80,7 @@ class Traefik extends Service
     }
 
     /**
-     * Point Traefik's default TLS store at the wildcard certificate. Issuing
-     * that certificate is a stack-level step and lives in the commands.
+     * Use the wildcard certificate as Traefik's default certificate.
      */
     public function prepare(): void
     {

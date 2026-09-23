@@ -8,8 +8,8 @@ use Illuminate\Contracts\Process\ProcessResult;
 use RuntimeException;
 
 /**
- * An error we can explain to the user, with an optional line telling them
- * what to do about it. Anything else is a bug and should surface as a trace.
+ * An error shown to the user, with an optional hint on how to fix it. Any
+ * other exception is a bug and shows a stack trace.
  */
 class FlightException extends RuntimeException
 {
@@ -24,7 +24,7 @@ class FlightException extends RuntimeException
     }
 
     /**
-     * Hint from whatever the failed command said, preferring stderr.
+     * Use the failed process's output as the hint, preferring stderr.
      */
     public static function fromProcess(ProcessResult $result, string $message, string $fallback = ''): self
     {

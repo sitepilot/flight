@@ -6,8 +6,8 @@ use App\Support\Executable;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Replace the editor with one that rewrites the file, standing in for a user
- * saving their changes.
+ * Replace the editor with one that writes the given contents, as if the user
+ * saved their changes.
  */
 function editorWriting(?string $contents): void
 {
@@ -74,8 +74,7 @@ it('never touches docker, so it works while the daemon is down', function () {
 });
 
 it('opens a config file that is currently invalid', function () {
-    // The whole point: you cannot fix a broken file if the command refuses
-    // to open it.
+    // Otherwise the user couldn't fix the file.
     file_put_contents($this->flightDirectory.'/config.yaml', "http_port: 99999\n");
 
     editorWriting("domain: flght.dev\nnetwork: flight\nhttp_port: 80\n");
@@ -84,8 +83,7 @@ it('opens a config file that is currently invalid', function () {
 });
 
 it('still reports an invalid file when nothing was changed', function () {
-    // Otherwise "No changes made" and a zero exit would imply a broken
-    // config is fine.
+    // "No changes made" with exit code 0 would suggest the file is valid.
     file_put_contents($this->flightDirectory.'/config.yaml', "http_port: 99999\n");
 
     editorWriting(null);
@@ -112,8 +110,7 @@ it('explains when EDITOR points at something missing', function () {
 })->throws(FlightException::class, 'not found in your PATH');
 
 it('resolves a bare command name against PATH', function () {
-    // PHP_BINARY is the one executable guaranteed to exist while the suite
-    // runs, which keeps this independent of what the machine has installed.
+    // PHP_BINARY is the only executable guaranteed to exist during tests.
     $original = getenv('PATH');
     putenv('PATH='.dirname(PHP_BINARY));
 

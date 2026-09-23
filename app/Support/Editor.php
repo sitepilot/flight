@@ -16,11 +16,10 @@ class Editor
     /**
      * Tried in order when neither VISUAL nor EDITOR is set.
      */
-    protected const FALLBACKS = ['nano', 'vim', 'vi'];
+    protected const array FALLBACKS = ['nano', 'vim', 'vi'];
 
     /**
-     * The editor command, which may carry arguments of its own such as
-     * "code --wait".
+     * The editor command, which may include arguments such as "code --wait".
      *
      * @return array<int, string>
      */
@@ -62,15 +61,13 @@ class Editor
 
         $process = Process::forever();
 
-        // Handing over the terminal is what makes an interactive editor
-        // usable, but /dev/tty is not always there — piped output, CI, a
-        // scripted $EDITOR. Symfony throws outright in that case, so only ask
-        // for a TTY when one is actually available.
+        // An interactive editor needs the terminal, but there is no TTY when
+        // output is piped or in CI, and Symfony throws if we ask for one.
         if (SymfonyProcess::isTtySupported()) {
             $process = $process->tty();
         }
 
-        // No timeout: the user decides how long they spend in there.
+        // No timeout: the user may edit for as long as they like.
         $result = $process->run($command);
 
         if ($result->failed()) {

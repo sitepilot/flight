@@ -43,8 +43,7 @@ it('enables traefik on itself so the dashboard router registers', function () {
 
     $labels = writeCompose()['services']['traefik']['labels'];
 
-    // Without this the docker provider ignores the container entirely,
-    // because it runs with exposedByDefault=false.
+    // Needed because exposedByDefault is false.
     expect($labels['traefik.enable'])->toBe('true')
         ->and($labels['traefik.http.routers.traefik.rule'])->toBe('Host(`traefik.flght.dev`)')
         ->and($labels['traefik.http.services.traefik.loadbalancer.server.port'])->toBe('8080');

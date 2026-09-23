@@ -41,7 +41,7 @@ it('creates the directory layout and seeds a documented config file', function (
 
     expect($contents)->toContain('domain: flght.dev')
         ->and($contents)->toContain('network: flight')
-        // The comments are the point of hand-writing the stub.
+        // The comments are why the stub is written by hand.
         ->and($contents)->toContain('# Flight configuration.');
 });
 
@@ -71,16 +71,16 @@ it('rejects identical http and https ports', function () {
 
     expect(fn () => flightSettings()->load())->toThrow(function (FlightException $e) {
         expect($e->getMessage())->toContain('Invalid "https_port"')
-            // The hint is what actually tells the user what went wrong.
+            // The hint explains what is wrong.
             ->and($e->hint())->toContain('must differ');
     });
 });
 
-it('names the literal config key in the message, not a humanised one', function () {
+it('names the literal config key in the message, not a humanized one', function () {
     flightConfig(['http_port' => 99999]);
 
     expect(fn () => flightSettings()->load())->toThrow(function (FlightException $e) {
-        // "http_port" is the line to edit; Laravel would say "http port".
+        // Laravel would say "http port".
         expect($e->hint())->toContain('http_port')
             ->and($e->hint())->not->toContain('http port');
     });

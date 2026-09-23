@@ -7,9 +7,8 @@ namespace Tests\Fixtures;
 use App\Services\Service;
 
 /**
- * Stands in for a second Flight-managed service, so the Service contract is
- * exercised by something other than Traefik while Traefik is the only real
- * implementation.
+ * A second global service, to test the Service contract with something
+ * other than Traefik.
  */
 class StubService extends Service
 {
