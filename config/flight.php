@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Php;
 use App\Services\Traefik;
 
 return [
@@ -9,9 +10,8 @@ return [
     | Configuration Directory
     |--------------------------------------------------------------------------
     |
-    | Everything Flight owns lives here: the user's config.yaml, the generated
-    | compose file, the Traefik dynamic configuration and the certificates.
-    | Override it with FLIGHT_CONFIG_DIR to run against a scratch directory.
+    | Holds config.yaml, the generated compose file, the Traefik configuration
+    | and the certificates. Set FLIGHT_CONFIG_DIR to use another directory.
     |
     */
 
@@ -22,8 +22,8 @@ return [
     | Default Settings
     |--------------------------------------------------------------------------
     |
-    | Seeded into config.yaml on first run and used as the fallback for any
-    | key the user has removed from that file.
+    | Written to config.yaml on first run, and used for any key missing from
+    | that file.
     |
     */
 
@@ -40,13 +40,27 @@ return [
     | Global Services
     |--------------------------------------------------------------------------
     |
-    | The services that make up the global stack, merged into the generated
-    | compose file in this order. Add a class here to ship a new service.
+    | The services in the global stack, in the order they are written to the
+    | compose file.
     |
     */
 
     'services' => [
         Traefik::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Project Services
+    |--------------------------------------------------------------------------
+    |
+    | The service types a flight.yml can use, keyed by type name. A service's
+    | type defaults to its name.
+    |
+    */
+
+    'project_services' => [
+        'php' => Php::class,
     ],
 
 ];

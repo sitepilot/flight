@@ -44,6 +44,33 @@ function flightConfig(array $settings = []): string
     return $directory;
 }
 
+/**
+ * Create a temporary project with the given flight.yml and change into it.
+ * Returns its resolved path.
+ *
+ * @param  array<string, mixed>|string  $flight  settings, or raw YAML
+ */
+function flightProject(array|string $flight = ['services' => ['php' => null]], string $name = 'myapp'): string
+{
+    $directory = sys_get_temp_dir().'/flight-project-'.bin2hex(random_bytes(6)).'/'.$name;
+
+    mkdir($directory, 0755, true);
+
+    file_put_contents(
+        $directory.'/flight.yml',
+        is_string($flight) ? $flight : Yaml::dump($flight, 4)
+    );
+
+    test()->originalDirectory ??= getcwd();
+    test()->projectDirectory = dirname($directory);
+
+    chdir($directory);
+
+    // On macOS the temporary directory is a symlink, and getcwd() returns
+    // the real path.
+    return (string) realpath($directory);
+}
+
 function removeDirectory(string $directory): void
 {
     (new Filesystem)->deleteDirectory($directory);

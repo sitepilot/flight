@@ -117,9 +117,88 @@ them.
 Any `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
 restart, for middlewares, routers or services pointing outside Docker.
 
-## Exposing a project
+## Projects
 
-Attach your service to the `flight` network and label it:
+Describe the services a project needs in a `flight.yml` in its root:
+
+```yaml
+services:
+  php:
+    version: "8.4"
+```
+
+Then, from anywhere inside the project:
+
+```bash
+flight up        # start the Flight stack when needed, then the project
+flight down      # stop the project; the Flight stack keeps running
+flight restart   # recreate the project's containers
+```
+
+The project is served at `https://<project>.flght.dev`, where `<project>` is
+the project name: `name` from `flight.yml`, or the directory name when unset.
+
+### Settings
+
+| Key        | Default             | Description                                  |
+| ---------- | ------------------- | -------------------------------------------- |
+| `name`     | the directory name  | Project name, and the subdomain it is served on |
+| `services` |                     | The services to run, keyed by service name   |
+
+A service's type is its service name, unless it sets `type`, so a project can run two
+of the same kind:
+
+```yaml
+services:
+  php: {}
+  legacy:
+    type: php
+    version: "8.1"
+```
+
+### Hostnames
+
+The first web service in `flight.yml` is served at `https://<project>.flght.dev`,
+every other one at `https://<project>-<service>.flght.dev`, where `<service>` is
+its key under `services`. For a project named `myapp`, in the example above
+`php` gets `myapp.flght.dev` and `legacy` gets `myapp-legacy.flght.dev`.
+
+A web service can answer on more hostnames too, for a multisite, tenants or a
+separate admin domain:
+
+```yaml
+services:
+  php:
+    hostnames: [shop, api]   # also shop.flght.dev and api.flght.dev
+```
+
+Each one is a single subdomain, since that is what the wildcard certificate
+covers. Two services serving the same hostname is an error.
+
+### PHP
+
+Runs [serversideup/php](https://serversideup.net/open-source/docker-php/)
+with the project mounted at `/var/www/html`.
+
+| Option    | Default     | Description                                          |
+| --------- | ----------- | ---------------------------------------------------- |
+| `version` | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                  |
+| `server`  | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`            |
+| `webroot` | `public`    | Document root relative to the project; `.` for the root |
+| `hostnames` | none      | Extra subdomains to serve, see [Hostnames](#hostnames) |
+
+The image is built with your user and group id, so files the container writes
+stay yours.
+
+### Generated files
+
+Flight writes the project's compose file to `.flight/`, together with a
+`.gitignore` that keeps it out of your repository. Services in
+`.flight/compose.override.yaml` are merged in and can be committed.
+
+## Exposing a project manually
+
+For projects without a `flight.yml`, attach your service to the `flight` network and label it:
 
 ```yaml
 services:

@@ -3,20 +3,21 @@
 namespace App\Providers;
 
 use App\Stacks\GlobalStack;
+use App\Stacks\ProjectStack;
 use App\Support\GlobalConfig;
+use App\Support\ProjectConfig;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        // A singleton so config.yaml is parsed and validated once per run and
-        // every service sees the same values.
         $this->app->singleton(GlobalConfig::class);
 
         $this->app->singleton(GlobalStack::class);
+
+        $this->app->singleton(ProjectConfig::class);
+
+        $this->app->singleton(ProjectStack::class);
     }
 }
