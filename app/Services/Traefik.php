@@ -4,38 +4,51 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Support\GlobalConfig;
 use App\Support\YamlFile;
 
 /**
  * The reverse proxy. Terminates TLS for *.<domain> and routes to containers
- * on the shared network.
+ * on the shared network. Its dashboard is served at traefik.<domain>.
  */
 class Traefik extends Service
 {
-    public function __construct(protected GlobalConfig $config) {}
-
-    public function name(): string
+    protected function defaults(): array
     {
-        return 'traefik';
+        return [
+            'http_port' => 80,
+            'https_port' => 443,
+            'docker_socket' => '/var/run/docker.sock',
+        ];
+    }
+
+    protected function rules(): array
+    {
+        return [
+            'http_port' => ['required', 'integer', 'between:1,65535'],
+            'https_port' => ['required', 'integer', 'between:1,65535', 'different:http_port'],
+            'docker_socket' => ['required', 'string'],
+        ];
+    }
+
+    public static function routes(): bool
+    {
+        return true;
     }
 
     public function definition(): array
     {
-        $network = $this->config->network();
-        $domain = $this->config->domain();
+        $network = $this->global->network();
 
         return [
             'image' => 'traefik:v3.7',
             'restart' => 'unless-stopped',
-            'networks' => ['default'],
             'command' => [
                 '--api.insecure=true',
                 '--providers.docker',
                 '--providers.docker.exposedByDefault=false',
                 "--providers.docker.network={$network}",
                 '--entrypoints.web.address=:80',
-                '--entrypoints.web.http.redirections.entrypoint.to=websecure',
+                '--entrypoints.web.http.redirections.entrypoint.to=:'.$this->option('https_port'),
                 '--entrypoints.web.http.redirections.entrypoint.scheme=https',
                 '--entrypoints.websecure.address=:443',
                 '--entrypoints.websecure.asDefault=true',
@@ -45,38 +58,34 @@ class Traefik extends Service
                 '--providers.file.directory=/opt/flight/config',
             ],
             'ports' => [
-                $this->config->httpPort().':80',
-                $this->config->httpsPort().':443',
+                $this->option('http_port').':80',
+                $this->option('https_port').':443',
             ],
             'volumes' => [
-                './traefik:/opt/flight/config:ro',
-                './certs:/opt/flight/certs:ro',
-                $this->config->dockerSocket().':/var/run/docker.sock',
+                $this->global->traefikDirectory().':/opt/flight/config:ro',
+                $this->global->certsDirectory().':/opt/flight/certs:ro',
+                $this->option('docker_socket').':/var/run/docker.sock',
             ],
-            'labels' => [
-                // Needed for the dashboard, since exposedByDefault is false.
-                'traefik.enable' => 'true',
-                'traefik.http.services.traefik.loadbalancer.server.port' => '8080',
-                'traefik.http.routers.traefik.rule' => "Host(`traefik.{$domain}`)",
-            ],
+            // The dashboard listens on 8080.
+            'labels' => $this->route(8080),
         ];
     }
 
-    /**
-     * The shared network is this stack's default network under another name.
-     * Adding it as a second network would put Traefik on two networks for no
-     * benefit.
-     */
-    public function networks(): array
+    public function environment(): array
     {
         return [
-            'default' => ['name' => $this->config->network()],
+            'FLIGHT_HTTP_PORT' => (string) $this->option('http_port'),
+            'FLIGHT_HTTPS_PORT' => (string) $this->option('https_port'),
+            'FLIGHT_DOCKER_SOCK' => (string) $this->option('docker_socket'),
         ];
     }
 
-    public function hostnames(): array
+    public function summary(): array
     {
-        return ['traefik.'.$this->config->domain()];
+        return [
+            ['HTTP', ':'.$this->option('http_port').'  → redirects to HTTPS'],
+            ['HTTPS', ':'.$this->option('https_port')],
+        ];
     }
 
     /**
@@ -84,7 +93,7 @@ class Traefik extends Service
      */
     public function prepare(): void
     {
-        YamlFile::write($this->config->traefikDirectory().'/tls.yml', [
+        YamlFile::write($this->global->traefikDirectory().'/tls.yml', [
             'tls' => [
                 'stores' => [
                     'default' => [

@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\Certificate;
+use App\Support\Files;
 
 /**
  * Issue a self-signed certificate for the given SANs without mkcert.
@@ -8,7 +9,7 @@ use App\Support\Certificate;
 function writeCertificate(array $domains, int $days = 30): void
 {
     $config = flightSettings();
-    $config->scaffold();
+    Files::ensureDirectory($config->certsDirectory());
 
     $key = openssl_pkey_new(['private_key_bits' => 2048]);
 
@@ -63,7 +64,7 @@ it('rejects a certificate issued for a different domain', function () {
 it('rejects an expired certificate', function () {
 
     $config = flightSettings();
-    $config->scaffold();
+    Files::ensureDirectory($config->certsDirectory());
 
     // A fixture, because OpenSSL 3.0 can't backdate a certificate. Its SAN
     // covers *.flght.dev, so only the expiry fails.

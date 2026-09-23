@@ -47,8 +47,8 @@ it('generates a routed php service built from serversideup/php', function () {
         ->and($php['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'off'])
         ->and($php['labels'])->toBe([
             'traefik.enable' => 'true',
-            'traefik.http.routers.myapp-php.rule' => 'Host(`myapp.flght.dev`)',
-            'traefik.http.services.myapp-php.loadbalancer.server.port' => '8080',
+            'traefik.http.routers.flight-myapp-php.rule' => 'Host(`myapp.flght.dev`)',
+            'traefik.http.services.flight-myapp-php.loadbalancer.server.port' => '8080',
         ])
         ->and($compose['networks']['flight'])->toBe(['name' => 'flight', 'external' => true]);
 });
@@ -95,7 +95,7 @@ it('follows the configured domain and network', function () {
 
     $compose = writeProjectCompose();
 
-    expect($compose['services']['php']['labels']['traefik.http.routers.shop-php.rule'])->toBe('Host(`shop.test.dev`)')
+    expect($compose['services']['php']['labels']['traefik.http.routers.flight-shop-php.rule'])->toBe('Host(`shop.test.dev`)')
         ->and($compose['networks']['flight']['name'])->toBe('proxy');
 });
 
@@ -138,8 +138,8 @@ it('serves the first routed service at the project hostname and the rest beside 
 
     $services = writeProjectCompose()['services'];
 
-    expect($services['php']['labels']['traefik.http.routers.myapp-php.rule'])->toBe('Host(`myapp.flght.dev`)')
-        ->and($services['admin']['labels']['traefik.http.routers.myapp-admin.rule'])->toBe('Host(`myapp-admin.flght.dev`)');
+    expect($services['php']['labels']['traefik.http.routers.flight-myapp-php.rule'])->toBe('Host(`myapp.flght.dev`)')
+        ->and($services['admin']['labels']['traefik.http.routers.flight-myapp-admin.rule'])->toBe('Host(`myapp-admin.flght.dev`)');
 });
 
 it('follows the order of flight.yml when picking the first service', function () {
@@ -147,21 +147,21 @@ it('follows the order of flight.yml when picking the first service', function ()
 
     $services = writeProjectCompose()['services'];
 
-    expect($services['admin']['labels']['traefik.http.routers.myapp-admin.rule'])->toBe('Host(`myapp.flght.dev`)')
-        ->and($services['php']['labels']['traefik.http.routers.myapp-php.rule'])->toBe('Host(`myapp-php.flght.dev`)');
+    expect($services['admin']['labels']['traefik.http.routers.flight-myapp-admin.rule'])->toBe('Host(`myapp.flght.dev`)')
+        ->and($services['php']['labels']['traefik.http.routers.flight-myapp-php.rule'])->toBe('Host(`myapp-php.flght.dev`)');
 });
 
 it('adds extra hostnames alongside the assigned one', function () {
     flightProject(['services' => ['php' => ['hostnames' => ['shop', 'api']]]]);
 
-    expect(writeProjectCompose()['services']['php']['labels']['traefik.http.routers.myapp-php.rule'])
+    expect(writeProjectCompose()['services']['php']['labels']['traefik.http.routers.flight-myapp-php.rule'])
         ->toBe('Host(`myapp.flght.dev`) || Host(`shop.flght.dev`) || Host(`api.flght.dev`)');
 });
 
 it('accepts a single extra hostname without a list', function () {
     flightProject("services:\n  php:\n    hostnames: shop\n");
 
-    expect(writeProjectCompose()['services']['php']['labels']['traefik.http.routers.myapp-php.rule'])
+    expect(writeProjectCompose()['services']['php']['labels']['traefik.http.routers.flight-myapp-php.rule'])
         ->toBe('Host(`myapp.flght.dev`) || Host(`shop.flght.dev`)');
 });
 

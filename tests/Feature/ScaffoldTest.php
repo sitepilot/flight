@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\Traefik;
+use App\Exceptions\FlightException;
 use App\Stacks\GlobalStack;
 use App\Support\Scaffold;
 use Symfony\Component\Yaml\Yaml;
@@ -9,7 +9,6 @@ use Tests\Fixtures\StubService;
 beforeEach(function () {
     flightDirectory();
 
-    StubService::$enabled = true;
     StubService::$prepared = false;
 });
 
@@ -32,8 +31,8 @@ it('generates a compose file matching the ported traefik service', function () {
     expect($traefik['image'])->toBe('traefik:v3.7')
         ->and($traefik['restart'])->toBe('unless-stopped')
         ->and($traefik['ports'])->toBe(['80:80', '443:443'])
-        ->and($traefik['volumes'])->toContain('./traefik:/opt/flight/config:ro')
-        ->and($traefik['volumes'])->toContain('./certs:/opt/flight/certs:ro')
+        ->and($traefik['volumes'])->toContain($this->flightDirectory.'/traefik:/opt/flight/config:ro')
+        ->and($traefik['volumes'])->toContain($this->flightDirectory.'/certs:/opt/flight/certs:ro')
         ->and($traefik['volumes'])->toContain('/var/run/docker.sock:/var/run/docker.sock')
         ->and($traefik['command'])->toContain('--providers.docker.exposedByDefault=false')
         ->and($traefik['command'])->toContain('--providers.file.directory=/opt/flight/config');
@@ -45,8 +44,8 @@ it('enables traefik on itself so the dashboard router registers', function () {
 
     // Needed because exposedByDefault is false.
     expect($labels['traefik.enable'])->toBe('true')
-        ->and($labels['traefik.http.routers.traefik.rule'])->toBe('Host(`traefik.flght.dev`)')
-        ->and($labels['traefik.http.services.traefik.loadbalancer.server.port'])->toBe('8080');
+        ->and($labels['traefik.http.routers.flight-traefik.rule'])->toBe('Host(`traefik.flght.dev`)')
+        ->and($labels['traefik.http.services.flight-traefik.loadbalancer.server.port'])->toBe('8080');
 });
 
 it('names the default network after the configured network', function () {
@@ -54,23 +53,26 @@ it('names the default network after the configured network', function () {
 
     $compose = writeCompose();
 
-    expect($compose['networks']['default']['name'])->toBe('proxy')
+    expect($compose['networks'])->toBe(['default' => ['name' => 'proxy']])
+        ->and($compose['services']['traefik']['networks'])->toBe(['default'])
         ->and($compose['services']['traefik']['command'])
         ->toContain('--providers.docker.network=proxy');
 });
 
 it('follows the configured domain and ports', function () {
-    flightConfig(['domain' => 'test.dev', 'http_port' => 8080, 'https_port' => 8443]);
+    flightConfig(['domain' => 'test.dev', 'services' => ['traefik' => ['http_port' => 8080, 'https_port' => 8443]]]);
 
     $traefik = writeCompose()['services']['traefik'];
 
     expect($traefik['ports'])->toBe(['8080:80', '8443:443'])
-        ->and($traefik['labels']['traefik.http.routers.traefik.rule'])
+        ->and($traefik['command'])->toContain('--entrypoints.web.http.redirections.entrypoint.to=:8443')
+        ->and($traefik['labels']['traefik.http.routers.flight-traefik.rule'])
         ->toBe('Host(`traefik.test.dev`)');
 });
 
-it('merges any registered service and calls its prepare hook', function () {
-    config(['flight.services' => [Traefik::class, StubService::class]]);
+it('merges any registered service listed in config.yaml and calls its prepare hook', function () {
+    config(['flight.services.stub' => StubService::class]);
+    flightConfig(['services' => ['stub' => null]]);
 
     $compose = writeCompose();
 
@@ -80,16 +82,17 @@ it('merges any registered service and calls its prepare hook', function () {
         ->and(StubService::$prepared)->toBeTrue();
 });
 
-it('leaves a disabled service out of the compose file', function () {
-    config(['flight.services' => [Traefik::class, StubService::class]]);
-    StubService::$enabled = false;
+it('rejects a service type that is not registered', function () {
+    flightConfig(['services' => ['mailpit' => null]]);
 
-    $compose = writeCompose();
+    writeCompose();
+})->throws(FlightException::class, 'Invalid "services.mailpit.type"');
 
-    expect($compose['services'])->toHaveKey('traefik')
-        ->and($compose['services'])->not->toHaveKey('stub')
-        ->and(StubService::$prepared)->toBeFalse();
-});
+it('rejects options a service does not have', function () {
+    flightConfig(['services' => ['traefik' => ['port' => 80]]]);
+
+    writeCompose();
+})->throws(FlightException::class, 'Invalid "services.traefik.port"');
 
 it('writes the traefik tls store as a side effect of preparing', function () {
 

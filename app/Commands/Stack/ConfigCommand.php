@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Commands\Stack;
 
 use App\Commands\FlightCommand;
+use App\Stacks\GlobalStack;
 use App\Support\Editor;
-use App\Support\GlobalConfig;
 
 class ConfigCommand extends FlightCommand
 {
@@ -14,8 +14,10 @@ class ConfigCommand extends FlightCommand
 
     protected $description = 'Edit the Flight configuration in your editor';
 
-    public function handle(GlobalConfig $config, Editor $editor): int
+    public function handle(GlobalStack $stack, Editor $editor): int
     {
+        $config = $stack->config();
+
         // Not load(): it would reject the invalid file the user wants to fix.
         $config->scaffold();
 
@@ -28,8 +30,9 @@ class ConfigCommand extends FlightCommand
         $changed = md5_file($file) !== $before;
 
         // Validate even when unchanged, so a file that was already invalid
-        // is reported now instead of on the next stack:up.
-        $config->load();
+        // is reported now instead of on the next stack:up. Building the
+        // services checks their options too.
+        $stack->validate();
 
         $this->step($changed ? 'Configuration is valid' : 'No changes made');
 

@@ -15,7 +15,6 @@ class Scaffold
     public function write(Stack $stack): void
     {
         $services = [];
-        $networks = [];
         $volumes = [];
 
         $stack->prepare();
@@ -23,16 +22,18 @@ class Scaffold
         foreach ($stack->services() as $service) {
             $service->prepare();
 
-            $services[$service->name()] = $service->definition();
-            $networks += $service->networks();
+            $definition = $service->definition();
+            $definition['networks'] ??= $stack->serviceNetworks();
+
+            $services[$service->name()] = $definition;
             $volumes += $service->volumes();
         }
 
         YamlFile::write($stack->composeFile(), array_filter([
             'name' => $stack->name(),
             'services' => $services,
-            // Empty sections are left out.
-            'networks' => $networks,
+            'networks' => $stack->networks(),
+            // An empty section is left out.
             'volumes' => $volumes,
         ]), $stack->composeNote());
     }

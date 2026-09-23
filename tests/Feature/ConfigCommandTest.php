@@ -51,7 +51,7 @@ it('reports when nothing was changed', function () {
 });
 
 it('validates what was saved', function () {
-    editorWriting("domain: flght.dev\nnetwork: flight\nhttp_port: 99999\n");
+    editorWriting("domain: flght.dev\nnetwork: flight\n"."services:\n  traefik:\n    http_port: 99999\n");
 
     $this->artisan('stack:config')->assertExitCode(1);
 });
@@ -75,16 +75,16 @@ it('never touches docker, so it works while the daemon is down', function () {
 
 it('opens a config file that is currently invalid', function () {
     // Otherwise the user couldn't fix the file.
-    file_put_contents($this->flightDirectory.'/config.yaml', "http_port: 99999\n");
+    file_put_contents($this->flightDirectory.'/config.yaml', "services:\n  traefik:\n    http_port: 99999\n");
 
-    editorWriting("domain: flght.dev\nnetwork: flight\nhttp_port: 80\n");
+    editorWriting("domain: flght.dev\nnetwork: flight\n");
 
     $this->artisan('stack:config')->assertExitCode(0);
 });
 
 it('still reports an invalid file when nothing was changed', function () {
     // "No changes made" with exit code 0 would suggest the file is valid.
-    file_put_contents($this->flightDirectory.'/config.yaml', "http_port: 99999\n");
+    file_put_contents($this->flightDirectory.'/config.yaml', "services:\n  traefik:\n    http_port: 99999\n");
 
     editorWriting(null);
 

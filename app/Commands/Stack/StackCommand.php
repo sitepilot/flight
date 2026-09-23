@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands\Stack;
 
 use App\Commands\FlightCommand;
+use App\Services\Service;
 use App\Stacks\GlobalStack;
 use App\Support\Compose;
 
@@ -31,8 +32,7 @@ abstract class StackCommand extends FlightCommand
         $this->summary($title, $stack, [
             ['Domain', '*.'.$config->domain()],
             ['Network', $config->network()],
-            ['HTTP', ':'.$config->httpPort().'  → redirects to HTTPS'],
-            ['HTTPS', ':'.$config->httpsPort()],
+            ...array_merge(...array_map(fn (Service $service): array => $service->summary(), $stack->services())),
         ], [
             ['Config', $this->displayPath($config->directory())],
         ]);

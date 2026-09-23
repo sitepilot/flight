@@ -1,6 +1,7 @@
 <?php
 
 use App\Recipes\Laravel;
+use App\Recipes\Proxy;
 use App\Services\Php;
 use App\Services\Traefik;
 
@@ -24,43 +25,39 @@ return [
     |--------------------------------------------------------------------------
     |
     | Written to config.yaml on first run, and used for any key missing from
-    | that file.
+    | that file. Traefik's options are defaults of the Traefik service.
     |
     */
 
     'defaults' => [
         'domain' => 'flght.dev',
         'network' => 'flight',
-        'http_port' => 80,
-        'https_port' => 443,
-        'docker_socket' => '/var/run/docker.sock',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Global Services
+    | Global Recipe
     |--------------------------------------------------------------------------
     |
-    | The services in the global stack, in the order they are written to the
-    | compose file.
+    | The recipe of the global stack. The services in config.yaml are merged
+    | over it, just like a project's flight.yml is merged over its recipe.
+    |
+    */
+
+    'recipe' => 'proxy',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Services
+    |--------------------------------------------------------------------------
+    |
+    | The service types config.yaml and flight.yml can use, keyed by type
+    | name. A service's type defaults to its name.
     |
     */
 
     'services' => [
-        Traefik::class,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Project Services
-    |--------------------------------------------------------------------------
-    |
-    | The service types a flight.yml can use, keyed by type name. A service's
-    | type defaults to its name.
-    |
-    */
-
-    'project_services' => [
+        'traefik' => Traefik::class,
         'php' => Php::class,
     ],
 
@@ -69,11 +66,12 @@ return [
     | Recipes
     |--------------------------------------------------------------------------
     |
-    | The preset stacks a flight.yml can use with `recipe:`, keyed by name.
+    | The preset stacks, keyed by name. A flight.yml picks one with `recipe:`.
     |
     */
 
     'recipes' => [
+        'proxy' => Proxy::class,
         'laravel' => Laravel::class,
     ],
 

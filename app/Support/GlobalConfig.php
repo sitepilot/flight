@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Exceptions\FlightException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Validator;
-use Symfony\Component\Yaml\Exception\ParseException;
-use Symfony\Component\Yaml\Yaml;
 
 /**
- * The settings in ~/.config/flight/config.yaml, shared by every project.
+ * The settings in ~/.config/flight/config.yaml, shared by every project,
+ * and the global stack's services. The stack's recipe is set by Flight in
+ * config/flight.php.
  */
-class GlobalConfig
+class GlobalConfig extends StackConfig
 {
-    /** @var array<string, mixed>|null */
-    protected ?array $settings = null;
-
     /**
      * Read on demand rather than in the constructor, so a changed
      * FLIGHT_CONFIG_DIR is always picked up.
@@ -27,12 +22,19 @@ class GlobalConfig
         return rtrim((string) config('flight.config_dir'), DIRECTORY_SEPARATOR);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    protected function defaults(): array
+    public function filesDirectory(): string
     {
-        return (array) config('flight.defaults');
+        return $this->directory();
+    }
+
+    public function file(): string
+    {
+        return $this->directory().'/config.yaml';
+    }
+
+    public function stackName(): string
+    {
+        return 'flight';
     }
 
     public function certsDirectory(): string
@@ -43,21 +45,6 @@ class GlobalConfig
     public function traefikDirectory(): string
     {
         return $this->directory().'/traefik';
-    }
-
-    public function file(): string
-    {
-        return $this->directory().'/config.yaml';
-    }
-
-    public function composeFile(): string
-    {
-        return $this->directory().'/compose.yaml';
-    }
-
-    public function overrideFile(): string
-    {
-        return $this->directory().'/compose.override.yaml';
     }
 
     public function certificateFile(): string
@@ -80,126 +67,76 @@ class GlobalConfig
         return (string) $this->get('network');
     }
 
-    public function httpPort(): int
-    {
-        return (int) $this->get('http_port');
-    }
-
-    public function httpsPort(): int
-    {
-        return (int) $this->get('https_port');
-    }
-
-    public function dockerSocket(): string
-    {
-        return (string) $this->get('docker_socket');
-    }
-
-    /**
-     * Variables passed to compose, so override files can use ${FLIGHT_DOMAIN}
-     * and the like.
-     *
-     * @return array<string, string>
-     */
     public function environment(): array
     {
         return [
             'FLIGHT_DOMAIN' => $this->domain(),
             'FLIGHT_NETWORK' => $this->network(),
-            'FLIGHT_HTTP_PORT' => (string) $this->httpPort(),
-            'FLIGHT_HTTPS_PORT' => (string) $this->httpsPort(),
-            'FLIGHT_DOCKER_SOCK' => $this->dockerSocket(),
         ];
     }
 
-    protected function get(string $key): mixed
+    public function ownsNetwork(): bool
     {
-        return $this->load()[$key] ?? null;
+        return true;
+    }
+
+    public function label(string $service, int $routed): string
+    {
+        return $service;
+    }
+
+    public function prepare(): void
+    {
+        $this->scaffold();
     }
 
     /**
-     * Create the directories, and a config.yaml when there is none.
+     * Create the directory, and a config.yaml when there is none.
      */
     public function scaffold(): void
     {
-        foreach ([$this->directory(), $this->certsDirectory(), $this->traefikDirectory()] as $directory) {
-            Files::ensureDirectory($directory);
-        }
+        Files::ensureDirectory($this->directory());
 
         if (! is_file($this->file())) {
             Files::put($this->file(), $this->stub());
         }
     }
 
-    /**
-     * Read config.yaml over the defaults and validate it. Parsed once per run.
-     *
-     * @return array<string, mixed>
-     */
-    public function load(): array
+    protected function recipeName(array $settings): ?string
     {
-        if ($this->settings !== null) {
-            return $this->settings;
-        }
-
-        $settings = $this->defaults();
-
-        if (is_file($this->file())) {
-            try {
-                $parsed = Yaml::parseFile($this->file());
-            } catch (ParseException $e) {
-                throw FlightException::make(
-                    'Could not parse '.$this->file().'.',
-                    $e->getMessage(),
-                );
-            }
-
-            if ($parsed !== null && ! is_array($parsed)) {
-                throw FlightException::make(
-                    'Expected '.$this->file().' to contain a mapping of settings.',
-                    'Delete the file to have Flight write a fresh one.',
-                );
-            }
-
-            // A removed key falls back to its default.
-            $settings = array_replace($settings, Arr::whereNotNull((array) $parsed));
-        }
-
-        return $this->settings = $this->validate($settings);
+        return config('flight.recipe');
     }
 
     /**
-     * @param  array<string, mixed>  $settings
      * @return array<string, mixed>
      */
-    protected function validate(array $settings): array
+    protected function defaults(): array
     {
-        // Name attributes after the YAML keys, e.g. "http_port" instead of
-        // "http port".
-        $keys = array_keys($this->defaults());
+        return (array) config('flight.defaults');
+    }
 
-        $validator = Validator::make($settings, [
+    /**
+     * A removed key falls back to its default.
+     */
+    protected function withDefaults(array $settings): array
+    {
+        return array_replace($this->defaults(), Arr::whereNotNull($settings));
+    }
+
+    protected function rules(): array
+    {
+        return [
             'domain' => ['required', 'string', 'regex:/^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/'],
             'network' => ['required', 'string', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/'],
-            'http_port' => ['required', 'integer', 'between:1,65535'],
-            'https_port' => ['required', 'integer', 'between:1,65535', 'different:http_port'],
-            'docker_socket' => ['required', 'string'],
-        ], [
+        ];
+    }
+
+    protected function messages(): array
+    {
+        return [
             'domain.regex' => 'Expected a hostname such as "flght.dev".',
             'network.regex' => 'Expected a Docker network name such as "flight".',
-        ], attributes: array_combine($keys, $keys));
-
-        if ($validator->fails()) {
-            // Report one problem at a time, naming the key to fix.
-            $key = array_key_first($validator->errors()->messages());
-
-            throw FlightException::make(
-                "Invalid \"{$key}\" in ".$this->file().'.',
-                (string) $validator->errors()->first($key),
-            );
-        }
-
-        return $settings;
+        ];
     }
 
     protected function stub(): string
@@ -216,12 +153,12 @@ class GlobalConfig
         # Shared Docker network that project containers join to be routed.
         network: {$d['network']}
 
-        # Host ports bound to the proxy.
-        http_port: {$d['http_port']}
-        https_port: {$d['https_port']}
-
-        # Docker socket mounted into Traefik.
-        docker_socket: {$d['docker_socket']}
+        # Options for the built-in services, merged over their defaults.
+        # services:
+        #   traefik:
+        #     http_port: 80
+        #     https_port: 443
+        #     docker_socket: /var/run/docker.sock
 
         YAML;
     }

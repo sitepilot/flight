@@ -74,18 +74,21 @@ Everything lives in `~/.config/flight`, which is created on first run:
 ```yaml
 domain: flght.dev
 network: flight
-http_port: 80
-https_port: 443
-docker_socket: /var/run/docker.sock
+
+services:
+  traefik:
+    http_port: 8080
 ```
 
-| Key             | Default                | Description                             |
-| --------------- | ---------------------- | --------------------------------------- |
-| `domain`        | `flght.dev`            | Wildcard domain the stack serves        |
-| `network`       | `flight`               | Shared Docker network projects join     |
-| `http_port`     | `80`                   | Host port bound to HTTP                 |
-| `https_port`    | `443`                  | Host port bound to HTTPS                |
-| `docker_socket` | `/var/run/docker.sock` | Docker socket mounted into Traefik      |
+| Key        | Default     | Description                              |
+| ---------- | ----------- | ---------------------------------------- |
+| `domain`   | `flght.dev` | Wildcard domain the stack serves         |
+| `network`  | `flight`    | Shared Docker network projects join      |
+| `services` |             | Options for the global services, see [Services](#services) |
+
+The global stack runs Flight's built-in `proxy` recipe, which is
+[Traefik](#traefik). `services` in `config.yaml` is merged over it the same way
+`flight.yml` is merged over a [recipe](#recipes), so you only list what differs.
 
 Every `*.<domain>` hostname needs to resolve to `127.0.0.1`. Changing `domain`
 issues a matching certificate on the next `flight stack:up`.
@@ -111,11 +114,6 @@ services:
 `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`, `FLIGHT_HTTP_PORT`, `FLIGHT_HTTPS_PORT` and
 `FLIGHT_DOCKER_SOCK` are exported to Compose, so override files can interpolate
 them.
-
-### Traefik dynamic configuration
-
-Any `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
-restart, for middlewares, routers or services pointing outside Docker.
 
 ## Projects
 
@@ -144,18 +142,7 @@ the project name: `name` from `flight.yml`, or the directory name when unset.
 | ---------- | ------------------- | -------------------------------------------- |
 | `name`     | the directory name  | Project name, and the subdomain it is served on |
 | `recipe`   | none                | A preset stack, see [Recipes](#recipes)      |
-| `services` |                     | The services to run, keyed by service name   |
-
-A service's type is its service name, unless it sets `type`, so a project can run two
-of the same kind:
-
-```yaml
-services:
-  php: {}
-  legacy:
-    type: php
-    version: "8.1"
-```
+| `services` |                     | The services to run, see [Services](#services) |
 
 ### Recipes
 
@@ -191,8 +178,9 @@ out, such as the PHP version, use the service defaults.
 
 The first web service in `flight.yml` is served at `https://<project>.flght.dev`,
 every other one at `https://<project>-<service>.flght.dev`, where `<service>` is
-its key under `services`. For a project named `myapp`, in the example above
-`php` gets `myapp.flght.dev` and `legacy` gets `myapp-legacy.flght.dev`.
+its key under `services`. For a project named `myapp` with the services `php`
+and `legacy`, `php` gets `myapp.flght.dev` and `legacy` gets
+`myapp-legacy.flght.dev`.
 
 A web service can answer on more hostnames too, for a multisite, tenants or a
 separate admin domain:
@@ -205,6 +193,52 @@ services:
 
 Each one is a single subdomain, since that is what the wildcard certificate
 covers. Two services serving the same hostname is an error.
+
+### Generated files
+
+Flight writes the project's compose file to `.flight/`, together with a
+`.gitignore` that keeps it out of your repository. Services in
+`.flight/compose.override.yaml` are merged in and can be committed.
+
+## Services
+
+Services are configured under `services`, in `flight.yml` for a project and in
+`config.yaml` for the global stack. Each one is keyed by name, with its options
+as a mapping. Options you leave out use the defaults below.
+
+A service's type is its name, unless it sets `type`, so a stack can run two of
+the same kind:
+
+```yaml
+services:
+  php: {}
+  legacy:
+    type: php
+    version: "8.1"
+```
+
+### Traefik
+
+The reverse proxy in the global stack. It terminates TLS for `*.<domain>` and
+routes to containers on the shared network. Its dashboard is served at
+`https://traefik.<domain>`.
+
+```yaml
+# config.yaml
+services:
+  traefik:
+    http_port: 8080
+```
+
+| Option          | Default                | Description                        |
+| --------------- | ---------------------- | ---------------------------------- |
+| `http_port`     | `80`                   | Host port bound to HTTP            |
+| `https_port`    | `443`                  | Host port bound to HTTPS           |
+| `docker_socket` | `/var/run/docker.sock` | Docker socket mounted into Traefik |
+| `hostnames`     | none                   | Extra subdomains for the dashboard |
+
+Any `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
+restart, for middlewares, routers or services pointing outside Docker.
 
 ### PHP
 
@@ -220,12 +254,6 @@ with the project mounted at `/var/www/html`.
 
 The image is built with your user and group id, so files the container writes
 stay yours.
-
-### Generated files
-
-Flight writes the project's compose file to `.flight/`, together with a
-`.gitignore` that keeps it out of your repository. Services in
-`.flight/compose.override.yaml` are merged in and can be committed.
 
 ## Exposing a project manually
 
