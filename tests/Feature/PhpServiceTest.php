@@ -39,7 +39,7 @@ it('generates a routed php service built from serversideup/php', function () {
     $php = $compose['services']['php'];
 
     expect($compose['name'])->toBe('flight-myapp')
-        ->and($php['build']['context'])->toBe('./.flight/php')
+        ->and($php['build']['context'])->toBe('./.flight/php/build')
         ->and($php['build']['args'])->toHaveKeys(['USER_ID', 'GROUP_ID'])
         ->and($php['pull_policy'])->toBe('build')
         ->and($php['volumes'])->toBe(['.:/var/www/html'])
@@ -67,7 +67,7 @@ it('writes a dockerfile for the chosen version and server', function () {
     flightProject(['services' => ['php' => ['version' => '8.3', 'server' => 'frankenphp']]]);
 
     $compose = writeProjectCompose();
-    $dockerfile = file_get_contents(getcwd().'/.flight/php/Dockerfile');
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/build/Dockerfile');
 
     expect($dockerfile)->toContain('FROM serversideup/php:8.3-frankenphp')
         ->and($dockerfile)->toContain('docker-php-serversideup-set-id www-data $USER_ID:$GROUP_ID')
@@ -80,7 +80,7 @@ it('accepts an unquoted version', function () {
 
     writeProjectCompose();
 
-    expect(file_get_contents(getcwd().'/.flight/php/Dockerfile'))->toContain('FROM serversideup/php:8.2-fpm-nginx');
+    expect(file_get_contents(getcwd().'/.flight/php/build/Dockerfile'))->toContain('FROM serversideup/php:8.2-fpm-nginx');
 });
 
 it('serves the project root when the webroot is empty', function () {
@@ -116,7 +116,7 @@ it('lists the supported versions', function () {
 it('rejects an unknown option', function () {
     expect(invalidPhp(['verison' => '8.3']))
         ->toContain('Invalid "services.php.verison"')
-        ->toContain('Expected one of: version, server, webroot, extensions, wp_cli, hostnames.');
+        ->toContain('Expected one of: version, server, webroot, project_path, extensions, wp_cli, hostnames.');
 });
 
 it('rejects an unknown service type', function () {
@@ -199,8 +199,8 @@ it('leaves options a recipe does not set to the service defaults', function () {
 
     $php = writeProjectCompose()['services']['php'];
 
-    expect($php['build']['context'])->toBe('./.flight/php')
-        ->and(file_get_contents(getcwd().'/.flight/php/Dockerfile'))->toContain('serversideup/php:8.4-fpm-nginx')
+    expect($php['build']['context'])->toBe('./.flight/php/build')
+        ->and(file_get_contents(getcwd().'/.flight/php/build/Dockerfile'))->toContain('serversideup/php:8.4-fpm-nginx')
         ->and($php['environment']['NGINX_WEBROOT'])->toBe('/var/www/html/public');
 });
 
@@ -208,7 +208,7 @@ it('installs extensions and wp-cli in the image when asked', function () {
     flightProject(['services' => ['php' => ['extensions' => ['mysqli', 'gd'], 'wp_cli' => true]]]);
 
     writeProjectCompose();
-    $dockerfile = file_get_contents(getcwd().'/.flight/php/Dockerfile');
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/build/Dockerfile');
 
     expect($dockerfile)->toContain("RUN install-php-extensions mysqli gd\n")
         ->and($dockerfile)->toContain('ADD --chmod=755 https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar /usr/local/bin/wp')
@@ -220,7 +220,7 @@ it('adds neither by default', function () {
     flightProject();
 
     writeProjectCompose();
-    $dockerfile = file_get_contents(getcwd().'/.flight/php/Dockerfile');
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/build/Dockerfile');
 
     expect($dockerfile)->not->toContain('install-php-extensions')
         ->and($dockerfile)->not->toContain('wp-cli');
@@ -231,3 +231,33 @@ it('rejects an extension name that is not one', function () {
         ->toContain('Invalid "services.php.extensions.0"')
         ->toContain('Expected an extension name');
 });
+
+it('mounts the project as the app by default', function () {
+    flightProject();
+
+    expect(writeProjectCompose()['services']['php']['volumes'])->toBe(['.:/var/www/html'])
+        ->and(getcwd().'/.flight/php/data')->not->toBeDirectory();
+});
+
+it('mounts the project inside an app kept in .flight when project_path is set', function () {
+    flightProject(['services' => ['php' => ['project_path' => 'wp-content/themes/my-theme', 'webroot' => '.']]]);
+
+    $php = writeProjectCompose()['services']['php'];
+
+    expect($php['volumes'])->toBe([
+        './.flight/php/data:/var/www/html',
+        '.:/var/www/html/wp-content/themes/my-theme',
+    ])
+        ->and($php['environment']['NGINX_WEBROOT'])->toBe('/var/www/html')
+        ->and($php['working_dir'])->toBe('/var/www/html')
+        // Created as the host user, so Docker doesn't create it as root.
+        ->and(getcwd().'/.flight/php/data/wp-content/themes/my-theme')->toBeDirectory()
+        // Kept out of the image's build context.
+        ->and(getcwd().'/.flight/php/build/Dockerfile')->toBeFile();
+});
+
+it('rejects a project_path outside the app', function (string $path) {
+    expect(invalidPhp(['project_path' => $path]))
+        ->toContain('Invalid "services.php.project_path"')
+        ->toContain('Expected a path inside the app');
+})->with(['/var/www', '../elsewhere']);

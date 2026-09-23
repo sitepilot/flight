@@ -9,6 +9,7 @@ use App\Stacks\ProjectStack;
 use App\Support\Compose;
 use Closure;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Process\ProcessResult;
 
 /**
  * Runs a project's provisioning steps in its containers: the recipe's
@@ -56,16 +57,30 @@ class Provisioner
      */
     public function run(ProjectStack $stack, Step $step, ?Closure $output = null): bool
     {
-        if ($step->unless !== null && $this->compose->exec($stack, (string) $step->service, $step->unless)->successful()) {
+        if ($step->unless !== null && $this->exec($stack, $step, $step->unless)->successful()) {
             return false;
         }
 
-        $result = $this->compose->exec($stack, (string) $step->service, (string) $step->command, $output);
+        $result = $this->exec($stack, $step, (string) $step->command, $output);
 
         if ($result->failed()) {
             throw FlightException::fromProcess($result, "Step \"{$step->name}\" failed.");
         }
 
         return true;
+    }
+
+    protected function exec(ProjectStack $stack, Step $step, string $command, ?Closure $output = null): ProcessResult
+    {
+        return $this->compose->exec($stack, (string) $step->service, $this->inDirectory($step, $command), $output);
+    }
+
+    /**
+     * Relative to the container's working directory, which for PHP is the
+     * app, e.g. "wp-content/themes/my-theme".
+     */
+    protected function inDirectory(Step $step, string $command): string
+    {
+        return $step->dir === null ? $command : 'cd '.escapeshellarg($step->dir).' && '.$command;
     }
 }

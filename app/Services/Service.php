@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Stacks\Stack;
 use App\Support\GlobalConfig;
 use App\Support\HasOptions;
+use Illuminate\Support\Str;
 
 /**
  * One service in a stack's compose file, built from its options in
@@ -119,6 +120,24 @@ abstract class Service
      * Write any files this service needs before compose runs.
      */
     public function prepare(): void {}
+
+    /**
+     * A folder of this service in the stack's files directory: "build" for
+     * files Flight generates, "data" for what the service keeps.
+     */
+    protected function directory(string $name): string
+    {
+        return $this->stack->filesDirectory().'/'.$this->name.'/'.$name;
+    }
+
+    /**
+     * A path as compose expects it, relative to the compose project
+     * directory, e.g. "./.flight/php/build".
+     */
+    protected function relativePath(string $path): string
+    {
+        return './'.ltrim(Str::after($path, $this->stack->directory()), '/');
+    }
 
     /**
      * Traefik labels that route hostnames() to a port in this container.

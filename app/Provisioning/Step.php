@@ -20,6 +20,11 @@ class Step
      */
     public ?string $unless = null;
 
+    /**
+     * Where to run, relative to the container's working directory.
+     */
+    public ?string $dir = null;
+
     public function __construct(public string $name) {}
 
     public static function make(string $name): static
@@ -28,13 +33,16 @@ class Step
     }
 
     /**
-     * @param  array{name: string, service: string, run: string, unless?: ?string}  $step
+     * @param  array{name: string, service: string, run: string, unless?: ?string, dir?: ?string}  $step
      */
     public static function fromArray(array $step): static
     {
         $instance = static::make($step['name'])->in($step['service'])->run($step['run']);
 
-        return isset($step['unless']) ? $instance->unless($step['unless']) : $instance;
+        $instance->unless = $step['unless'] ?? null;
+        $instance->dir = $step['dir'] ?? null;
+
+        return $instance;
     }
 
     public function in(string $service): static
@@ -47,6 +55,13 @@ class Step
     public function run(string $command): static
     {
         $this->command = $command;
+
+        return $this;
+    }
+
+    public function dir(string $dir): static
+    {
+        $this->dir = $dir;
 
         return $this;
     }

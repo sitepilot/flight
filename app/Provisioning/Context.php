@@ -26,13 +26,8 @@ class Context
 
     public function service(string $name): Service
     {
-        foreach ($this->stack->services() as $service) {
-            if ($service->name() === $name) {
-                return $service;
-            }
-        }
-
-        throw FlightException::make("The project has no \"{$name}\" service.");
+        return $this->stack->service($name)
+            ?? throw FlightException::make("The project has no \"{$name}\" service.");
     }
 
     public function domain(): string

@@ -125,3 +125,35 @@ it('rejects an invalid recipe option, naming its path', function () {
 
     app(ProjectStack::class)->project()->load();
 })->throws(FlightException::class, 'Invalid "recipe.stub.greeting"');
+
+it('runs a step in a directory relative to the app', function (string $dir, string $prefix) {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Build', 'service' => 'php', 'run' => 'npm run build', 'unless' => 'test -f greeted', 'dir' => $dir],
+    ]]);
+
+    provisionAll();
+
+    expect($this->commands[0])->toEndWith("exec -T php sh -c {$prefix} && test -f greeted")
+        ->and($this->commands[1])->toEndWith("exec -T php sh -c {$prefix} && npm run build");
+})->with([
+    'a subdirectory' => ['wp-content/themes/my-theme', "cd 'wp-content/themes/my-theme'"],
+    'the app itself' => ['.', "cd '.'"],
+]);
+
+it('runs a step in the container working directory without a dir', function () {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Build', 'service' => 'php', 'run' => 'npm run build'],
+    ]]);
+
+    provisionAll();
+
+    expect($this->commands[0])->toEndWith('exec -T php sh -c npm run build');
+});
+
+it('rejects a step directory outside the app', function () {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Build', 'service' => 'php', 'run' => 'true', 'dir' => '../etc'],
+    ]]);
+
+    app(ProjectStack::class)->project()->load();
+})->throws(FlightException::class, 'Invalid "provision.0.dir"');

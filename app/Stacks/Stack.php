@@ -117,6 +117,17 @@ abstract class Stack
         return $this->services = $services;
     }
 
+    public function service(string $name): ?Service
+    {
+        foreach ($this->services() as $service) {
+            if ($service->name() === $name) {
+                return $service;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Building the services validates their options.
      */

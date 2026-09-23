@@ -201,6 +201,29 @@ URL. Each step is skipped once done, so later runs leave the site alone.
 
 Run WP-CLI in the container, e.g. `docker exec -it flight-myapp-php-1 wp plugin list`.
 
+To develop a theme or plugin, keep its repository as the project and place it
+inside WordPress with the PHP service's `project_path`. WordPress itself is then
+kept in `.flight/php/data`:
+
+```yaml
+recipe: wordpress
+
+services:
+  php:
+    project_path: wp-content/themes/my-theme   # or wp-content/plugins/my-plugin
+
+provision:
+  - name: Build theme
+    service: php
+    dir: wp-content/themes/my-theme
+    run: npm run build
+
+  - name: Activate theme
+    service: php
+    run: wp theme activate my-theme
+    unless: wp theme is-active my-theme
+```
+
 ### Provisioning
 
 Steps run in the project's containers on every `flight up`, once the project
@@ -221,6 +244,7 @@ provision:
 | `service` | The service to run it in                                     |
 | `run`     | Shell command, run as the container's user                   |
 | `unless`  | Optional check; when it exits 0 the step is skipped as done  |
+| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `wp-content/themes/my-theme` |
 
 Since steps run on every `flight up`, give each one an `unless` check, or make
 the command itself safe to repeat. A failing step stops `flight up` and shows
@@ -249,8 +273,22 @@ covers. Two services serving the same hostname is an error.
 ### Generated files
 
 Flight writes the project's compose file to `.flight/`, together with a
-`.gitignore` that keeps it out of your repository. Services in
-`.flight/compose.override.yaml` are merged in and can be committed.
+`.gitignore` that keeps it out of your repository. Each service has a folder
+there: `build/` for the files its image is built from, and `data/` for what
+it keeps, such as WordPress when the PHP service has a `project_path`.
+
+Services in `.flight/compose.override.yaml` are merged in and can be
+committed. Use it for anything Flight has no option for, such as extra mounts:
+
+```yaml
+services:
+  php:
+    volumes:
+      - ./packages/my-package:/var/www/html/vendor/acme/my-package
+```
+
+Tools that scan the whole repository, such as linters or `wp dist-archive`, may
+need `.flight` excluded.
 
 ## Services
 
@@ -295,13 +333,15 @@ restart, for middlewares, routers or services pointing outside Docker.
 ### PHP
 
 Runs [serversideup/php](https://serversideup.net/open-source/docker-php/)
-with the project mounted at `/var/www/html`.
+with the app at `/var/www/html`. The app is the project, unless `project_path`
+places the project inside an app kept in `.flight/php/data`.
 
 | Option    | Default     | Description                                          |
 | --------- | ----------- | ---------------------------------------------------- |
 | `version` | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                  |
 | `server`  | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`            |
-| `webroot` | `public`    | Document root relative to the project; `.` for the root |
+| `webroot` | `public`    | Document root relative to the app; `.` for the root  |
+| `project_path` | `.`    | Where the project sits in the app, e.g. `wp-content/themes/my-theme`; see [WordPress](#wordpress) |
 | `extensions` | none     | Extra PHP extensions, such as `[mysqli, gd]`         |
 | `wp_cli`  | `false`     | Install [WP-CLI](https://wp-cli.org) as `wp`         |
 | `hostnames` | none      | Extra subdomains to serve, see [Hostnames](#hostnames) |
