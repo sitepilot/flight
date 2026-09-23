@@ -64,7 +64,7 @@ class Php extends Service
     {
         return [
             'webroot.regex' => 'Expected a path inside the project, such as "public".',
-            'project_path.regex' => 'Expected a path inside the app, such as "wp-content/themes/my-theme".',
+            'project_path.regex' => 'Expected a path inside the app, such as "modules/my-module".',
             'extensions.*.regex' => 'Expected an extension name such as "mysqli".',
         ];
     }
@@ -168,7 +168,7 @@ class Php extends Service
 
     /**
      * The project is the app, unless project_path places it inside an app
-     * kept in .flight/<service>/data, e.g. a theme inside WordPress.
+     * kept in .flight/<service>/data, e.g. a module inside a larger app.
      *
      * @return array<int, string>
      */

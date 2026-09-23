@@ -155,12 +155,14 @@ class ProjectConfig extends StackConfig
             'recipe' => ['nullable'],
             'services' => ['nullable', 'required_without:recipe', 'array'],
             'provision' => ['nullable', 'list'],
-            'provision.*' => ['array:name,service,run,unless,dir'],
+            'provision.*' => ['array:name,service,run,unless,dir,env'],
             'provision.*.name' => ['required', 'string'],
             'provision.*.service' => ['required', 'string'],
             'provision.*.run' => ['required', 'string'],
             'provision.*.unless' => ['nullable', 'string'],
             'provision.*.dir' => ['nullable', 'string', 'regex:'.Php::PATH],
+            'provision.*.env' => ['nullable', 'list'],
+            'provision.*.env.*' => ['string', 'regex:/^[A-Za-z_][A-Za-z0-9_]*$/'],
         ];
     }
 
@@ -171,8 +173,10 @@ class ProjectConfig extends StackConfig
             'name.regex' => 'Expected a lowercase name such as "myapp"; it becomes myapp.<domain>.',
             'services.required_without' => 'Expected services to list at least one service, such as `php: {}`, or a recipe such as "laravel".',
             'provision.list' => 'Expected provision to be a list of steps.',
-            'provision.*.array' => 'Expected a step with name, service, run and optionally unless and dir.',
-            'provision.*.dir.regex' => 'Expected a path inside the app, such as "wp-content/themes/my-theme".',
+            'provision.*.array' => 'Expected a step with name, service, run and optionally unless, dir and env.',
+            'provision.*.env.list' => 'Expected a list of variable names, such as [COMPOSER_AUTH].',
+            'provision.*.env.*.regex' => 'Expected a variable name, such as "COMPOSER_AUTH".',
+            'provision.*.dir.regex' => 'Expected a path inside the app, such as "assets".',
         ];
     }
 }

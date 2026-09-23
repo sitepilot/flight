@@ -64,16 +64,24 @@ class Compose
     /**
      * Run a shell command in a running service. Returns the result instead
      * of throwing, since a failing check is not an error.
+     *
+     * Only the names of $env are on the command line; compose reads their
+     * values from its environment, so secrets don't show up in `ps`.
+     *
+     * @param  array<string, string>  $env
      */
-    public function exec(Stack $stack, string $service, string $command, ?Closure $output = null): ProcessResult
+    public function exec(Stack $stack, string $service, string $command, ?Closure $output = null, array $env = []): ProcessResult
     {
-        return $this->process($stack, ['exec', '-T', $service, 'sh', '-c', $command], $output, timeout: 3600);
+        $names = array_merge(...array_map(fn (string $name): array => ['-e', $name], array_keys($env)));
+
+        return $this->process($stack, ['exec', '-T', ...$names, $service, 'sh', '-c', $command], $output, 3600, $env);
     }
 
     /**
      * @param  array<int, string>  $arguments
+     * @param  array<string, string>  $env
      */
-    protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300): ProcessResult
+    protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300, array $env = []): ProcessResult
     {
         // Always pass the project name, so COMPOSE_PROJECT_NAME in a stray
         // .env can't rename the stack.
@@ -88,7 +96,7 @@ class Compose
             $command[] = $file;
         }
 
-        return Process::env($stack->environment())
+        return Process::env([...$stack->environment(), ...$env])
             ->timeout($timeout)
             ->run([...$command, ...$arguments], $output);
     }

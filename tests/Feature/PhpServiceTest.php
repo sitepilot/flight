@@ -240,18 +240,18 @@ it('mounts the project as the app by default', function () {
 });
 
 it('mounts the project inside an app kept in .flight when project_path is set', function () {
-    flightProject(['services' => ['php' => ['project_path' => 'wp-content/themes/my-theme', 'webroot' => '.']]]);
+    flightProject(['services' => ['php' => ['project_path' => 'modules/my-module', 'webroot' => '.']]]);
 
     $php = writeProjectCompose()['services']['php'];
 
     expect($php['volumes'])->toBe([
         './.flight/php/data:/var/www/html',
-        '.:/var/www/html/wp-content/themes/my-theme',
+        '.:/var/www/html/modules/my-module',
     ])
         ->and($php['environment']['NGINX_WEBROOT'])->toBe('/var/www/html')
         ->and($php['working_dir'])->toBe('/var/www/html')
         // Created as the host user, so Docker doesn't create it as root.
-        ->and(getcwd().'/.flight/php/data/wp-content/themes/my-theme')->toBeDirectory()
+        ->and(getcwd().'/.flight/php/data/modules/my-module')->toBeDirectory()
         // Kept out of the image's build context.
         ->and(getcwd().'/.flight/php/build/Dockerfile')->toBeFile();
 });

@@ -7,6 +7,7 @@ namespace App\Provisioning;
 use App\Exceptions\FlightException;
 use App\Stacks\ProjectStack;
 use App\Support\Compose;
+use App\Support\Variables;
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Process\ProcessResult;
@@ -20,6 +21,7 @@ class Provisioner
     public function __construct(
         protected Compose $compose,
         protected Container $container,
+        protected Variables $variables,
     ) {}
 
     /**
@@ -44,6 +46,15 @@ class Provisioner
                     "Step \"{$step->name}\" needs a command and one of the project's services.",
                     'Expected a service such as: '.implode(', ', $services).'.',
                 );
+            }
+
+            foreach ($step->env as $name) {
+                if ($this->variables->get($project, $name) === null) {
+                    throw FlightException::make(
+                        "Step \"{$step->name}\" needs {$name}.",
+                        $this->variables->hint($project),
+                    );
+                }
             }
         }
 
@@ -72,12 +83,18 @@ class Provisioner
 
     protected function exec(ProjectStack $stack, Step $step, string $command, ?Closure $output = null): ProcessResult
     {
-        return $this->compose->exec($stack, (string) $step->service, $this->inDirectory($step, $command), $output);
+        $env = [];
+
+        foreach ($step->env as $name) {
+            $env[$name] = (string) $this->variables->get($stack->project(), $name);
+        }
+
+        return $this->compose->exec($stack, (string) $step->service, $this->inDirectory($step, $command), $output, $env);
     }
 
     /**
      * Relative to the container's working directory, which for PHP is the
-     * app, e.g. "wp-content/themes/my-theme".
+     * app, e.g. "assets".
      */
     protected function inDirectory(Step $step, string $command): string
     {

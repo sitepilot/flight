@@ -64,6 +64,7 @@ Everything lives in `~/.config/flight`, which is created on first run:
 | ----------------------- | ------ | ------------------------------------ |
 | `config.yaml`           | you    | Settings, see below                  |
 | `compose.override.yaml` | you    | Extra services, loaded when present  |
+| `.env`                  | you    | [Secrets](#secrets) for every project |
 | `traefik/`              | you    | Traefik dynamic configuration, watched |
 | `certs/`                | flight | Wildcard certificate                 |
 | `compose.yaml`          | flight | Generated, overwritten on every run  |
@@ -244,11 +245,41 @@ provision:
 | `service` | The service to run it in                                     |
 | `run`     | Shell command, run as the container's user                   |
 | `unless`  | Optional check; when it exits 0 the step is skipped as done  |
-| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `wp-content/themes/my-theme` |
+| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `assets` |
+| `env`     | Optional variables the step needs, see [Secrets](#secrets)   |
 
 Since steps run on every `flight up`, give each one an `unless` check, or make
 the command itself safe to repeat. A failing step stops `flight up` and shows
 its output.
+
+### Secrets
+
+Keep tokens and license keys out of `flight.yaml` by listing them in a step's
+`env`. The step's command and its check get them as environment variables, so
+a tool can read them itself or the command can use them as `${NAME}`:
+
+```yaml
+provision:
+  - name: Install dependencies
+    service: php
+    env: [COMPOSER_AUTH]   # read by Composer for private packages
+    run: composer install
+    unless: test -d vendor
+```
+
+Flight looks up each variable in your shell, then in the project's
+`.flight/.env`, then in `~/.config/flight/.env`, which suits tokens you use in
+every project:
+
+```bash
+# ~/.config/flight/.env
+COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
+```
+
+Neither file is committed. A step whose variable is set nowhere stops
+`flight up` before anything starts. The value is handed to the container
+without appearing on the command line; your project's own `.env` is left to
+your app.
 
 ### Hostnames
 
@@ -275,7 +306,7 @@ covers. Two services serving the same hostname is an error.
 Flight writes the project's compose file to `.flight/`, together with a
 `.gitignore` that keeps it out of your repository. Each service has a folder
 there: `build/` for the files its image is built from, and `data/` for what
-it keeps, such as WordPress when the PHP service has a `project_path`.
+it keeps, such as the app the project is placed in with `project_path`.
 
 Services in `.flight/compose.override.yaml` are merged in and can be
 committed. Use it for anything Flight has no option for, such as extra mounts:
@@ -287,7 +318,7 @@ services:
       - ./packages/my-package:/var/www/html/vendor/acme/my-package
 ```
 
-Tools that scan the whole repository, such as linters or `wp dist-archive`, may
+Tools that scan the whole repository, such as linters or packaging scripts, may
 need `.flight` excluded.
 
 ## Services
@@ -341,7 +372,7 @@ places the project inside an app kept in `.flight/php/data`.
 | `version` | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                  |
 | `server`  | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`            |
 | `webroot` | `public`    | Document root relative to the app; `.` for the root  |
-| `project_path` | `.`    | Where the project sits in the app, e.g. `wp-content/themes/my-theme`; see [WordPress](#wordpress) |
+| `project_path` | `.`    | Where the project sits in the app, e.g. `modules/my-module`; the app is then kept in `.flight/php/data` |
 | `extensions` | none     | Extra PHP extensions, such as `[mysqli, gd]`         |
 | `wp_cli`  | `false`     | Install [WP-CLI](https://wp-cli.org) as `wp`         |
 | `hostnames` | none      | Extra subdomains to serve, see [Hostnames](#hostnames) |

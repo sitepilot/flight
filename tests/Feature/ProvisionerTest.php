@@ -2,9 +2,14 @@
 
 use App\Exceptions\FlightException;
 use App\Provisioning\Provisioner;
+use App\Provisioning\Step;
 use App\Stacks\ProjectStack;
 use Illuminate\Support\Facades\Process;
 use Tests\Fixtures\StubRecipe;
+
+afterEach(function () {
+    putenv('COMPOSER_AUTH');
+});
 
 beforeEach(function () {
     flightDirectory();
@@ -15,9 +20,13 @@ beforeEach(function () {
     $this->commands = new ArrayObject;
     $this->checkExitCode = 1;
 
+    // The environment of each command, in the same order.
+    $this->environments = new ArrayObject;
+
     Process::fake(function ($process) {
         $command = implode(' ', (array) $process->command);
         $this->commands[] = $command;
+        $this->environments[] = $process->environment;
 
         return Process::result('', '', str_contains($command, 'test -f greeted') ? $this->checkExitCode : 0);
     });
@@ -136,7 +145,7 @@ it('runs a step in a directory relative to the app', function (string $dir, stri
     expect($this->commands[0])->toEndWith("exec -T php sh -c {$prefix} && test -f greeted")
         ->and($this->commands[1])->toEndWith("exec -T php sh -c {$prefix} && npm run build");
 })->with([
-    'a subdirectory' => ['wp-content/themes/my-theme', "cd 'wp-content/themes/my-theme'"],
+    'a subdirectory' => ['assets', "cd 'assets'"],
     'the app itself' => ['.', "cd '.'"],
 ]);
 
@@ -157,3 +166,55 @@ it('rejects a step directory outside the app', function () {
 
     app(ProjectStack::class)->project()->load();
 })->throws(FlightException::class, 'Invalid "provision.0.dir"');
+
+it('passes the variables a step needs by name only', function () {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'composer install', 'unless' => 'test -f greeted'],
+    ]]);
+    putenv('COMPOSER_AUTH=secret-key');
+
+    provisionAll();
+
+    foreach ([0, 1] as $i) {
+        expect($this->commands[$i])->toContain('exec -T -e COMPOSER_AUTH php sh -c')
+            ->not->toContain('secret-key')
+            ->and($this->environments[$i]['COMPOSER_AUTH'])->toBe('secret-key');
+    }
+});
+
+it('reads a step variable from the project .flight/.env', function () {
+    $root = flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
+    ]]);
+    mkdir($root.'/.flight');
+    file_put_contents($root.'/.flight/.env', "COMPOSER_AUTH=from-file\n");
+
+    provisionAll();
+
+    expect($this->environments[0]['COMPOSER_AUTH'])->toBe('from-file');
+});
+
+it('stops before anything runs when a step variable is not set', function () {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
+    ]]);
+
+    expect(fn () => provisioner()->steps(app(ProjectStack::class)))->toThrow(function (FlightException $e) {
+        expect($e->getMessage())->toBe('Step "Install dependencies" needs COMPOSER_AUTH.')
+            ->and($e->hint())->toContain('.flight/.env');
+    });
+
+    Process::assertNothingRan();
+});
+
+it('rejects an invalid variable name', function () {
+    flightProject(['services' => ['php' => null], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER-AUTH'], 'run' => 'true'],
+    ]]);
+
+    app(ProjectStack::class)->project()->load();
+})->throws(FlightException::class, 'Invalid "provision.0.env.0"');
+
+it('lets a recipe step declare its variables', function () {
+    expect(Step::make('Install dependencies')->env('COMPOSER_AUTH', 'OTHER')->env)->toBe(['COMPOSER_AUTH', 'OTHER']);
+});

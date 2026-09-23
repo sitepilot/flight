@@ -35,8 +35,8 @@ class MariaDB extends Service
     protected function messages(): array
     {
         return [
-            'database.regex' => 'Expected letters, digits and underscores, such as "wordpress".',
-            'user.regex' => 'Expected letters, digits and underscores, such as "wordpress".',
+            'database.regex' => 'Expected letters, digits and underscores, such as "shop".',
+            'user.regex' => 'Expected letters, digits and underscores, such as "shop".',
         ];
     }
 

@@ -6,8 +6,8 @@ namespace App\Provisioning;
 
 /**
  * A shell command run in one of the project's services, e.g.
- * Step::make('Install WordPress')->in('php')->run('wp core install …')
- * ->unless('wp core is-installed').
+ * Step::make('Install dependencies')->in('php')->run('composer install')
+ * ->unless('test -d vendor').
  */
 class Step
 {
@@ -25,6 +25,13 @@ class Step
      */
     public ?string $dir = null;
 
+    /**
+     * Variables passed to the command and its check, e.g. a license key.
+     *
+     * @var array<int, string>
+     */
+    public array $env = [];
+
     public function __construct(public string $name) {}
 
     public static function make(string $name): static
@@ -33,7 +40,7 @@ class Step
     }
 
     /**
-     * @param  array{name: string, service: string, run: string, unless?: ?string, dir?: ?string}  $step
+     * @param  array{name: string, service: string, run: string, unless?: ?string, dir?: ?string, env?: ?array<int, string>}  $step
      */
     public static function fromArray(array $step): static
     {
@@ -41,6 +48,7 @@ class Step
 
         $instance->unless = $step['unless'] ?? null;
         $instance->dir = $step['dir'] ?? null;
+        $instance->env = $step['env'] ?? [];
 
         return $instance;
     }
@@ -55,6 +63,13 @@ class Step
     public function run(string $command): static
     {
         $this->command = $command;
+
+        return $this;
+    }
+
+    public function env(string ...$names): static
+    {
+        $this->env = $names;
 
         return $this;
     }
