@@ -95,6 +95,30 @@ class Compose
      */
     public function attach(Stack $stack, string $service, array $command, ?Closure $output = null): ProcessResult
     {
+        return $this->stream($stack, ['exec', ...($this->hasTty() ? [] : ['-T']), $service, ...$command], $output);
+    }
+
+    /**
+     * Show a service's logs, following new ones when $follow is set.
+     */
+    public function logs(Stack $stack, string $service, bool $follow = false, ?string $tail = null, ?Closure $output = null): ProcessResult
+    {
+        return $this->stream($stack, [
+            'logs',
+            ...($follow ? ['--follow'] : []),
+            ...($tail === null ? [] : ['--tail', $tail]),
+            $service,
+        ], $output);
+    }
+
+    /**
+     * Run compose for the user without a time limit, attached to the
+     * terminal when there is one, and otherwise pass its output to $output.
+     *
+     * @param  array<int, string>  $arguments
+     */
+    protected function stream(Stack $stack, array $arguments, ?Closure $output = null): ProcessResult
+    {
         $this->ensureInstalled();
 
         $tty = $this->hasTty();
@@ -102,7 +126,7 @@ class Compose
         return Process::env($stack->environment())
             ->forever()
             ->tty($tty)
-            ->run([...$this->command($stack), 'exec', ...($tty ? [] : ['-T']), $service, ...$command], $tty ? null : $output);
+            ->run([...$this->command($stack), ...$arguments], $tty ? null : $output);
     }
 
     protected function hasTty(): bool

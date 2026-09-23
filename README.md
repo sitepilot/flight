@@ -111,6 +111,7 @@ Run these from anywhere inside a project:
 | `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `compose.override.yaml` and `.env`. |
 | `flight shell [service]` | Opens a shell in a container, by default the project's first service |
 | `flight exec -- <command>` | Runs a command in a container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
+| `flight logs [service]` | Shows a container's logs, by default the project's first service. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
 
 These manage the Flight stack itself:
 

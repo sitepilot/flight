@@ -231,3 +231,41 @@ it('prints only the command output, without the flight heading', function () {
 
     expect(Artisan::output())->not->toContain('Flight');
 });
+
+it('shows the logs of the first service', function () {
+    $this->artisan('logs')->assertExitCode(0);
+
+    expect($this->commands)->toHaveCount(1)
+        ->and($this->commands[0])->toContain('-p flight-myapp')
+        ->toEndWith(' logs php');
+});
+
+it('shows the logs of the service asked for', function () {
+    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  mariadb: {}\n");
+
+    $this->artisan('logs mariadb')->assertExitCode(0);
+
+    expect($this->commands[0])->toEndWith(' logs mariadb');
+});
+
+it('follows and tails the logs when asked', function () {
+    $this->artisan('logs php -f --tail=50')->assertExitCode(0);
+
+    expect($this->commands[0])->toEndWith(' logs --follow --tail 50 php');
+});
+
+it('rejects a tail that is not a number of lines', function () {
+    $exitCode = $this->withoutMockingConsoleOutput()->artisan('logs --tail=many');
+
+    expect($exitCode)->toBe(1)
+        ->and(Artisan::output())->toContain('Invalid --tail.');
+
+    Process::assertNothingRan();
+});
+
+it('rejects logs for a service the project does not have', function () {
+    $exitCode = $this->withoutMockingConsoleOutput()->artisan('logs redis');
+
+    expect($exitCode)->toBe(1)
+        ->and(Artisan::output())->toContain('The project has no "redis" service.');
+});
