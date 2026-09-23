@@ -48,14 +48,7 @@ class Provisioner
                 );
             }
 
-            foreach ($step->env as $name) {
-                if ($this->variables->get($project, $name) === null) {
-                    throw FlightException::make(
-                        "Step \"{$step->name}\" needs {$name}.",
-                        $this->variables->hint($project),
-                    );
-                }
-            }
+            $this->variables->forStep($project, $step);
         }
 
         return $steps;
@@ -83,11 +76,7 @@ class Provisioner
 
     protected function exec(ProjectStack $stack, Step $step, string $command, ?Closure $output = null): ProcessResult
     {
-        $env = [];
-
-        foreach ($step->env as $name) {
-            $env[$name] = (string) $this->variables->get($stack->project(), $name);
-        }
+        $env = $this->variables->forStep($stack->project(), $step);
 
         return $this->compose->exec($stack, (string) $step->service, $this->inDirectory($step, $command), $output, $env);
     }

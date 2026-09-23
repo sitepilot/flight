@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Exceptions\FlightException;
+use App\Provisioning\Step;
 use Dotenv\Dotenv;
 use Dotenv\Exception\ExceptionInterface;
 use Illuminate\Support\Str;
@@ -37,6 +38,24 @@ class Variables
         }
 
         return null;
+    }
+
+    /**
+     * The values of the variables a step lists, by name. A variable that is
+     * set nowhere is an error, reported before anything starts.
+     *
+     * @return array<string, string>
+     */
+    public function forStep(StackConfig $config, Step $step): array
+    {
+        $values = [];
+
+        foreach ($step->env as $name) {
+            $values[$name] = $this->get($config, $name)
+                ?? throw FlightException::make("Step \"{$step->name}\" needs {$name}.", $this->hint($config));
+        }
+
+        return $values;
     }
 
     /**
