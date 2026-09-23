@@ -23,9 +23,17 @@ use function Laravel\Prompts\spin;
  */
 abstract class FlightCommand extends Command
 {
+    /**
+     * Leave out the heading and trailing line, for commands whose output is
+     * the container's, such as `flight exec`.
+     */
+    protected bool $plain = false;
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->heading();
+        if (! $this->plain) {
+            $this->heading();
+        }
 
         try {
             $status = parent::execute($input, $output);
@@ -35,7 +43,9 @@ abstract class FlightCommand extends Command
             $status = self::FAILURE;
         }
 
-        $this->line('');
+        if (! $this->plain) {
+            $this->line('');
+        }
 
         return $status;
     }

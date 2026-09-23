@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Commands\Project;
 
 use App\Commands\FlightCommand;
+use App\Exceptions\FlightException;
 use App\Provisioning\Provisioner;
 use App\Provisioning\Step;
 use App\Stacks\ProjectStack;
+use Closure;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Output shared by the commands that manage the project in the current
@@ -15,6 +18,35 @@ use App\Stacks\ProjectStack;
  */
 abstract class ProjectCommand extends FlightCommand
 {
+    /**
+     * The named service, or the project's first one.
+     */
+    protected function service(ProjectStack $stack, ?string $name): string
+    {
+        $services = array_map(fn ($service): string => $service->name(), $stack->services());
+
+        if ($name === null) {
+            return $services[0];
+        }
+
+        if (! in_array($name, $services, true)) {
+            throw FlightException::make(
+                "The project has no \"{$name}\" service.",
+                'Expected one of: '.implode(', ', $services).'.',
+            );
+        }
+
+        return $name;
+    }
+
+    /**
+     * Pass the container's output through as it arrives.
+     */
+    protected function passthrough(): Closure
+    {
+        return fn (string $type, string $buffer) => $this->output->write($buffer, false, OutputInterface::OUTPUT_RAW);
+    }
+
     /**
      * @param  array<int, Step>  $steps
      */

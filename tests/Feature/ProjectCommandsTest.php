@@ -177,3 +177,57 @@ it('destroys after confirming', function () {
 
     expect($this->commands[0])->toEndWith('down --volumes --remove-orphans');
 });
+
+it('opens a shell in the first service', function () {
+    $this->artisan('shell')->assertExitCode(0);
+
+    expect($this->commands)->toHaveCount(1)
+        ->and($this->commands[0])->toContain('-p flight-myapp')
+        ->toMatch('/ exec( -T)? php sh -c if command -v bash/');
+});
+
+it('opens a shell in the service asked for', function () {
+    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  mariadb: {}\n");
+
+    $this->artisan('shell mariadb')->assertExitCode(0);
+
+    expect($this->commands[0])->toMatch('/ exec( -T)? mariadb sh -c /');
+});
+
+it('names the services when the one asked for does not exist', function () {
+    $exitCode = $this->withoutMockingConsoleOutput()->artisan('shell redis');
+
+    expect($exitCode)->toBe(1)
+        ->and(Artisan::output())->toContain('The project has no "redis" service.')
+        ->toContain('Expected one of: php.');
+
+    Process::assertNothingRan();
+});
+
+it('runs a command with its own options after --', function () {
+    $this->artisan('exec -- php artisan migrate --force')->assertExitCode(0);
+
+    expect($this->commands[0])->toMatch('/ exec( -T)? php php artisan migrate --force$/');
+});
+
+it('runs a command in another service', function () {
+    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  valkey: {}\n");
+
+    $this->artisan('exec --service=valkey -- valkey-cli ping')->assertExitCode(0);
+
+    expect($this->commands[0])->toMatch('/ exec( -T)? valkey valkey-cli ping$/');
+});
+
+it('exits with the exit code of the command', function () {
+    Process::fake(fn () => Process::result('', 'failed', 3));
+
+    $this->artisan('exec -- false')->assertExitCode(3);
+});
+
+it('prints only the command output, without the flight heading', function () {
+    Process::fake(fn () => Process::result("PHP 8.4\n"));
+
+    $this->withoutMockingConsoleOutput()->artisan('exec -- php -v');
+
+    expect(Artisan::output())->not->toContain('Flight');
+});

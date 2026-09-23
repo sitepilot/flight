@@ -9,6 +9,7 @@ use App\Stacks\Stack;
 use Closure;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 /**
  * Runs docker compose for a stack, writing its compose file first so it is
@@ -86,13 +87,48 @@ class Compose
     }
 
     /**
+     * Run a command in a running service for the user, attached to the
+     * terminal when there is one, so shells and prompts work. The result
+     * carries the command's own exit code.
+     *
+     * @param  array<int, string>  $command
+     */
+    public function attach(Stack $stack, string $service, array $command, ?Closure $output = null): ProcessResult
+    {
+        $this->ensureInstalled();
+
+        $tty = $this->hasTty();
+
+        return Process::env($stack->environment())
+            ->forever()
+            ->tty($tty)
+            ->run([...$this->command($stack), 'exec', ...($tty ? [] : ['-T']), $service, ...$command], $tty ? null : $output);
+    }
+
+    protected function hasTty(): bool
+    {
+        return SymfonyProcess::isTtySupported();
+    }
+
+    /**
      * @param  array<int, string>  $arguments
      * @param  array<string, string>  $env
      */
     protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300, array $env = []): ProcessResult
     {
-        // Always pass the project name, so COMPOSE_PROJECT_NAME in a stray
-        // .env can't rename the stack.
+        return Process::env([...$stack->environment(), ...$env])
+            ->timeout($timeout)
+            ->run([...$this->command($stack), ...$arguments], $output);
+    }
+
+    /**
+     * Always pass the project name, so COMPOSE_PROJECT_NAME in a stray .env
+     * can't rename the stack.
+     *
+     * @return array<int, string>
+     */
+    protected function command(Stack $stack): array
+    {
         $command = [
             'docker', 'compose',
             '--project-directory', $stack->directory(),
@@ -104,9 +140,7 @@ class Compose
             $command[] = $file;
         }
 
-        return Process::env([...$stack->environment(), ...$env])
-            ->timeout($timeout)
-            ->run([...$command, ...$arguments], $output);
+        return $command;
     }
 
     /**

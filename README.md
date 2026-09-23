@@ -109,6 +109,8 @@ Run these from anywhere inside a project:
 | `flight down`   | Stops the project; the Flight stack keeps running              |
 | `flight restart`| Recreates the project's containers                             |
 | `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `compose.override.yaml` and `.env`. |
+| `flight shell [service]` | Opens a shell in a container, by default the project's first service |
+| `flight exec -- <command>` | Runs a command in a container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
 
 These manage the Flight stack itself:
 
@@ -123,6 +125,10 @@ These manage the Flight stack itself:
 
 Add `-v` to any command to see Docker's full output instead of a spinner. This
 helps when something fails to start.
+
+`flight exec` passes on the command's output and exit code, so you can use it
+in scripts and pipes. Put the command after `--`, so its options aren't read
+as Flight's: `flight exec -- composer install --no-dev`.
 
 ## The flight.yaml file
 
@@ -349,11 +355,10 @@ DB_USERNAME=flight
 DB_PASSWORD=flight
 ```
 
-Then run `flight up` and open `https://<project>.flght.dev`. To run Artisan,
-open a shell in the container:
+Then run `flight up` and open `https://<project>.flght.dev`. To run Artisan:
 
 ```bash
-docker exec -it flight-<project>-php-1 php artisan migrate
+flight exec -- php artisan migrate
 ```
 
 ### A WordPress site
@@ -380,7 +385,7 @@ Later runs skip these steps, so your site is left as it is.
 WP-CLI is installed in the PHP container:
 
 ```bash
-docker exec -it flight-<project>-php-1 wp plugin list
+flight exec -- wp plugin list
 ```
 
 ### A WordPress theme or plugin
