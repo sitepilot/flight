@@ -11,10 +11,7 @@ use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * The user's global settings, read from ~/.config/flight/config.yaml.
- *
- * A ProjectConfig will sit beside this once flight.yml lands, which is why
- * this is not simply called "Configuration".
+ * The settings in ~/.config/flight/config.yaml, shared by every project.
  */
 class GlobalConfig
 {
@@ -22,10 +19,8 @@ class GlobalConfig
     protected ?array $settings = null;
 
     /**
-     * Paths and defaults are read from the config repository on demand rather
-     * than captured in the constructor: commands are built during boot, so a
-     * constructor-injected directory would freeze before anything could
-     * override FLIGHT_CONFIG_DIR.
+     * Read on demand rather than in the constructor, so a changed
+     * FLIGHT_CONFIG_DIR is always picked up.
      */
     public function directory(): string
     {
@@ -100,34 +95,44 @@ class GlobalConfig
         return (string) $this->get('docker_socket');
     }
 
+    /**
+     * Variables passed to compose, so override files can use ${FLIGHT_DOMAIN}
+     * and the like.
+     *
+     * @return array<string, string>
+     */
+    public function environment(): array
+    {
+        return [
+            'FLIGHT_DOMAIN' => $this->domain(),
+            'FLIGHT_NETWORK' => $this->network(),
+            'FLIGHT_HTTP_PORT' => (string) $this->httpPort(),
+            'FLIGHT_HTTPS_PORT' => (string) $this->httpsPort(),
+            'FLIGHT_DOCKER_SOCK' => $this->dockerSocket(),
+        ];
+    }
+
     protected function get(string $key): mixed
     {
         return $this->load()[$key] ?? null;
     }
 
     /**
-     * Create the directory layout and seed config.yaml when it is missing.
-     * Never touches an existing config.yaml.
+     * Create the directories, and a config.yaml when there is none.
      */
     public function scaffold(): void
     {
         foreach ([$this->directory(), $this->certsDirectory(), $this->traefikDirectory()] as $directory) {
-            if (! is_dir($directory) && ! @mkdir($directory, 0755, true) && ! is_dir($directory)) {
-                throw FlightException::make(
-                    "Could not create {$directory}.",
-                    'Check that you have permission to write there.',
-                );
-            }
+            Files::ensureDirectory($directory);
         }
 
         if (! is_file($this->file())) {
-            file_put_contents($this->file(), $this->stub());
+            Files::put($this->file(), $this->stub());
         }
     }
 
     /**
-     * Read config.yaml over the defaults and validate the result. Parsed once
-     * per run so every service sees the same values.
+     * Read config.yaml over the defaults and validate it. Parsed once per run.
      *
      * @return array<string, mixed>
      */
@@ -156,7 +161,7 @@ class GlobalConfig
                 );
             }
 
-            // A key the user removed falls back to its default rather than null.
+            // A removed key falls back to its default.
             $settings = array_replace($settings, Arr::whereNotNull((array) $parsed));
         }
 
@@ -169,8 +174,8 @@ class GlobalConfig
      */
     protected function validate(array $settings): array
     {
-        // Name attributes after the literal YAML keys, so a message points at
-        // the line the user has to edit rather than "http port".
+        // Name attributes after the YAML keys, e.g. "http_port" instead of
+        // "http port".
         $keys = array_keys($this->defaults());
 
         $validator = Validator::make($settings, [
@@ -190,8 +195,7 @@ class GlobalConfig
         ], attributes: array_combine($keys, $keys));
 
         if ($validator->fails()) {
-            // Report one problem at a time, naming the key so the user knows
-            // which line of their config.yaml to go and look at.
+            // Report one problem at a time, naming the key to fix.
             $key = array_key_first($validator->errors()->messages());
 
             throw FlightException::make(

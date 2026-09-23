@@ -1,27 +1,12 @@
 <?php
 
 use App\Stacks\GlobalStack;
-use App\Support\Certificate;
 use App\Support\GlobalConfig;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Stand in for a certificate that is already on disk and valid, so the
- * commands never shell out to mkcert.
- */
-function fakeValidCertificate(): void
-{
-    $certificate = Mockery::mock(Certificate::class);
-    $certificate->shouldReceive('ensure')->andReturn(false)->byDefault();
-    $certificate->shouldReceive('issue')->andReturnNull()->byDefault();
-
-    app()->instance(Certificate::class, $certificate);
-}
-
-/**
- * Assert a docker compose lifecycle command ran with exactly the flags the
- * bash version used, ignoring the dependency probes that precede it.
+ * Assert that a compose command ran with the given trailing arguments.
  */
 function assertComposeRan(string $endsWith, ?callable $and = null): void
 {
@@ -62,9 +47,7 @@ it('recreates the stack on restart', function () {
 });
 
 it('reissues the certificate and restarts on secure', function () {
-    $certificate = Mockery::mock(Certificate::class);
-    $certificate->shouldReceive('issue')->once();
-    app()->instance(Certificate::class, $certificate);
+    fakeValidCertificate()->shouldReceive('issue')->once();
 
     $this->artisan('stack:secure')->assertExitCode(0);
 
@@ -91,8 +74,7 @@ it('includes the override file when it exists', function () {
 it('spawns no docker process beyond compose itself', function () {
     $this->artisan('stack:up')->assertExitCode(0);
 
-    // Probing the daemon and the plugin cost two extra spawns (~160ms) to
-    // pre-empt an error compose already reports clearly and quickly.
+    // Checking these first would add about 160ms to every command.
     Process::assertDidntRun(['docker', 'compose', 'version']);
     Process::assertDidntRun(['docker', 'info']);
 });
@@ -126,8 +108,8 @@ it('writes the compose file before running compose', function () {
 });
 
 it('surfaces the docker output when compose fails', function () {
-    // A closure fake, because the array form merges into the catch-all
-    // already registered in beforeEach and would never be reached.
+    // A closure, because an array fake would merge with the catch-all fake
+    // from beforeEach and never match.
     Process::fake(function ($process) {
         $command = implode(' ', (array) $process->command);
 
@@ -136,8 +118,8 @@ it('surfaces the docker output when compose fails', function () {
             : Process::result('');
     });
 
-    // Console output is captured rather than mocked: the error panel is
-    // written straight to the output, which PendingCommand's mock intercepts.
+    // Capture the output instead of mocking it, since the error panel is
+    // written directly to it.
     $exitCode = $this->withoutMockingConsoleOutput()->artisan('stack:up');
 
     expect($exitCode)->toBe(1)

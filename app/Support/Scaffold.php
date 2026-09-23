@@ -7,10 +7,8 @@ namespace App\Support;
 use App\Stacks\Stack;
 
 /**
- * Turns a stack's services into its generated compose file.
- *
- * Rewritten on every run, as the bash version did and documented: the file
- * is owned by Flight, user services belong in compose.override.yaml.
+ * Writes a stack's compose file from its services. The file is overwritten
+ * on every run.
  */
 class Scaffold
 {
@@ -19,6 +17,8 @@ class Scaffold
         $services = [];
         $networks = [];
         $volumes = [];
+
+        $stack->prepare();
 
         foreach ($stack->services() as $service) {
             $service->prepare();
@@ -31,9 +31,9 @@ class Scaffold
         YamlFile::write($stack->composeFile(), array_filter([
             'name' => $stack->name(),
             'services' => $services,
-            // Dropped when empty; a stack always has at least one service.
+            // Empty sections are left out.
             'networks' => $networks,
             'volumes' => $volumes,
-        ]), 'add your own services to compose.override.yaml instead.');
+        ]), $stack->composeNote());
     }
 }

@@ -1,7 +1,9 @@
 <?php
 
+use App\Support\Certificate;
 use App\Support\GlobalConfig;
 use Illuminate\Filesystem\Filesystem;
+use Mockery\MockInterface;
 use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
 
@@ -12,9 +14,8 @@ uses(TestCase::class)->in('Feature');
 | Helpers
 |--------------------------------------------------------------------------
 |
-| Flight reads and writes a configuration directory, so nearly every test
-| needs a throwaway one. FLIGHT_CONFIG_DIR is the same seam the CLI exposes
-| to users, which keeps tests honest about how the app is really wired.
+| Most tests need a temporary configuration directory. They set it the same
+| way users do, through the flight.config_dir setting.
 |
 */
 
@@ -49,7 +50,7 @@ function removeDirectory(string $directory): void
 }
 
 /**
- * The application's global configuration, reading the throwaway directory.
+ * The global configuration, reading the temporary directory.
  */
 function flightSettings(): GlobalConfig
 {
@@ -57,8 +58,23 @@ function flightSettings(): GlobalConfig
 }
 
 /**
- * Run a callback with VISUAL/EDITOR set, restoring them afterwards even when
- * an expectation fails.
+ * Fake a valid certificate so commands never run mkcert. Only ensure() and
+ * issue() are faked.
+ */
+function fakeValidCertificate(): MockInterface
+{
+    $certificate = Mockery::mock(Certificate::class.'[ensure,issue]', [flightSettings()]);
+    $certificate->shouldReceive('ensure')->andReturn(false)->byDefault();
+    $certificate->shouldReceive('issue')->andReturnNull()->byDefault();
+
+    app()->instance(Certificate::class, $certificate);
+
+    return $certificate;
+}
+
+/**
+ * Run a callback with VISUAL and EDITOR set, restoring them afterward even
+ * when an expectation fails.
  */
 function withEditorEnv(?string $visual, ?string $editor, Closure $callback): mixed
 {

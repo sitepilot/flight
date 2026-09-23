@@ -5,49 +5,39 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Exceptions\FlightException;
-use App\Support\GlobalConfig;
+use App\Stacks\Stack;
 use Illuminate\Support\Str;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
+use function Laravel\Prompts\spin;
+
+/**
+ * Wraps every command in a heading and renders a FlightException as an
+ * error panel instead of a stack trace.
+ *
+ * Commands take their dependencies as handle() parameters, not constructor
+ * parameters: commands are instantiated during boot, before the application
+ * is fully configured.
+ */
 abstract class FlightCommand extends Command
 {
-    protected GlobalConfig $config;
-
-    /**
-     * Collaborators arrive through method injection rather than the
-     * constructor: command discovery instantiates every command during boot,
-     * so a constructor-injected dependency would be captured before the
-     * application had finished configuring itself.
-     */
-    public function handle(GlobalConfig $config): int
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->config = $config;
+        $this->heading();
 
         try {
-            $this->heading();
-            $this->bootstrap();
-
-            // Dispatched through the container so each command declares the
-            // collaborators it actually needs as fly() parameters.
-            $status = (int) $this->laravel->call([$this, 'fly']);
+            $status = parent::execute($input, $output);
         } catch (FlightException $e) {
             $this->renderFailure($e);
 
             $status = self::FAILURE;
         }
 
-        // Every command closes with a blank line, mirroring the heading.
         $this->line('');
 
         return $status;
-    }
-
-    /**
-     * Everything any command needs: a configuration file to work from.
-     */
-    protected function bootstrap(): void
-    {
-        $this->config->scaffold();
     }
 
     protected function heading(): void
@@ -74,6 +64,45 @@ abstract class FlightCommand extends Command
         }
     }
 
+    /**
+     * Run a compose action behind a spinner, or stream its output with -v.
+     */
+    protected function composing(string $running, string $done, callable $action): void
+    {
+        if ($this->output->isVerbose()) {
+            $this->line('');
+            $action(fn ($type, $buffer) => $this->output->write($buffer));
+        } else {
+            spin(fn () => $action(null), $running.'…');
+        }
+
+        $this->step($done);
+    }
+
+    /**
+     * A panel with the given rows around one row per URL the stack serves.
+     *
+     * @param  array<int, array{0: string, 1: string}>  $before
+     * @param  array<int, array{0: string, 1: string}>  $after
+     */
+    protected function summary(string $title, Stack $stack, array $before, array $after): void
+    {
+        $rows = $before;
+
+        foreach ($stack->services() as $service) {
+            foreach ($service->hostnames() as $hostname) {
+                $rows[] = [ucfirst($service->name()), 'https://'.$hostname];
+            }
+        }
+
+        $rows = [...$rows, ...$after];
+
+        $this->panel($title, array_map(
+            fn (array $row): array => [str_pad($row[0], 11), $row[1]],
+            $rows,
+        ), 'cyan');
+    }
+
     protected function renderFailure(FlightException $e): void
     {
         $rows = array_map(fn (string $line): array => ['', $line], $this->wrap($e->getMessage(), 60));
@@ -90,16 +119,15 @@ abstract class FlightCommand extends Command
     }
 
     /**
-     * Draw a titled box. Termwind has no left/right borders, so the frame is
-     * built here rather than with utility classes.
+     * Drawn by hand because Termwind has no left or right borders.
      *
      * @param  array<int, array{0: string, 1: string}>  $rows
      */
-    protected function panel(string $title, array $rows, string $colour): void
+    protected function panel(string $title, array $rows, string $color): void
     {
         $this->line('');
 
-        // Inner width: the space between the two vertical border characters.
+        // The width between the two vertical borders.
         $inner = mb_strlen($title) + 4;
 
         foreach ($rows as [$label, $value]) {
@@ -108,7 +136,7 @@ abstract class FlightCommand extends Command
 
         $this->line(sprintf(
             '  <fg=%1$s>╭─ </><fg=%1$s;options=bold>%2$s</><fg=%1$s> %3$s╮</>',
-            $colour,
+            $color,
             $title,
             str_repeat('─', $inner - mb_strlen($title) - 3)
         ));
@@ -116,14 +144,14 @@ abstract class FlightCommand extends Command
         foreach ($rows as [$label, $value]) {
             $this->line(sprintf(
                 '  <fg=%1$s>│</>  <fg=gray>%2$s</>%3$s%4$s<fg=%1$s>│</>',
-                $colour,
+                $color,
                 $label,
                 $value,
                 str_repeat(' ', $inner - mb_strlen($label.$value) - 2)
             ));
         }
 
-        $this->line(sprintf('  <fg=%1$s>╰%2$s╯</>', $colour, str_repeat('─', $inner)));
+        $this->line(sprintf('  <fg=%1$s>╰%2$s╯</>', $color, str_repeat('─', $inner)));
     }
 
     /**
@@ -131,14 +159,10 @@ abstract class FlightCommand extends Command
      */
     protected function wrap(string $message, int $width): array
     {
-        // Trimmed: a trailing space would count toward the row width and
-        // push the panel's right border out of line.
+        // A trailing space would push the panel's right border out of line.
         return array_map('trim', explode("\n", wordwrap($message, $width, "\n", true)));
     }
 
-    /**
-     * Shorten $HOME so the summary stays readable.
-     */
     protected function displayPath(string $path): string
     {
         return Str::replaceStart($_SERVER['HOME'] ?? '', '~', $path);

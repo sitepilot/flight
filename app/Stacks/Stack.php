@@ -7,10 +7,8 @@ namespace App\Stacks;
 use App\Services\Service;
 
 /**
- * A named compose project in a directory, made up of services.
- *
- * Compose and Scaffold only ever talk to this, which is what will let a
- * ProjectStack (driven by a project's flight.yml) reuse both unchanged.
+ * A compose project made up of services. Compose and Scaffold work with any
+ * stack, so the global stack and project stacks are handled the same way.
  */
 abstract class Stack
 {
@@ -20,8 +18,8 @@ abstract class Stack
     abstract public function name(): string;
 
     /**
-     * Passed to compose as --project-directory. Relative volume paths in the
-     * generated compose file resolve against it.
+     * The compose --project-directory. Relative paths in the compose file
+     * resolve against it.
      */
     abstract public function directory(): string;
 
@@ -46,7 +44,21 @@ abstract class Stack
     }
 
     /**
-     * Generated file first, then the override when it exists on disk.
+     * What the reader of the generated compose file should edit instead.
+     */
+    public function composeNote(): string
+    {
+        return 'add your own services to compose.override.yaml instead.';
+    }
+
+    /**
+     * Create what the stack needs on disk before its compose file is
+     * written.
+     */
+    public function prepare(): void {}
+
+    /**
+     * The generated file, then the override file when it exists.
      *
      * @return array<int, string>
      */
@@ -64,8 +76,8 @@ abstract class Stack
     }
 
     /**
-     * Variables exported to the compose process, so that a user's override
-     * file can still interpolate ${FLIGHT_DOMAIN} and friends.
+     * Variables passed to compose, so override files can use ${FLIGHT_DOMAIN}
+     * and the like.
      *
      * @return array<string, string>
      */

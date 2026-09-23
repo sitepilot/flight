@@ -10,10 +10,8 @@ use Phar;
 use Throwable;
 
 /**
- * Replaces the framework's own self-update command so that a failure reads
- * like every other error in Flight rather than a raw stack trace — the
- * likeliest failures here are being offline or behind a proxy, which is not
- * a bug worth a trace.
+ * Replaces the framework's self-update command, so that being offline shows
+ * an error panel instead of a stack trace.
  */
 class SelfUpdateCommand extends FlightCommand
 {
@@ -21,7 +19,7 @@ class SelfUpdateCommand extends FlightCommand
 
     protected $description = 'Update Flight to the latest release';
 
-    public function fly(): int
+    public function handle(): int
     {
         if (Phar::running() === '') {
             throw FlightException::make(
@@ -34,6 +32,7 @@ class SelfUpdateCommand extends FlightCommand
         $this->line('  Checking for a new version…');
 
         try {
+            // Not injected: the updater is only bound in the packaged binary.
             $this->laravel->make(Updater::class)->update($this->output);
         } catch (Throwable $e) {
             throw FlightException::make('Could not check for a new version.', $this->explain($e));
@@ -43,8 +42,8 @@ class SelfUpdateCommand extends FlightCommand
     }
 
     /**
-     * Versions come from Packagist, so the two failures worth naming are
-     * "not published there yet" and "cannot reach it".
+     * Name the two failures worth explaining: not on Packagist yet, and
+     * Packagist unreachable.
      */
     protected function explain(Throwable $e): string
     {

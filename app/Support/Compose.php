@@ -11,18 +11,17 @@ use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Runs docker compose against a Stack.
- *
- * Everything is parameterised by the stack rather than hardcoded, which is
- * what will let a ProjectStack reuse this class untouched.
+ * Runs docker compose for a stack, writing its compose file first so it is
+ * never stale.
  */
 class Compose
 {
+    public function __construct(protected Scaffold $scaffold) {}
+
     /**
-     * Hints for the failures worth explaining, keyed by a fragment of the
-     * stderr docker produces.
+     * Hints for common failures, keyed by text that appears in stderr.
      */
-    protected const HINTS = [
+    protected const array HINTS = [
         'Cannot connect to the Docker daemon' => 'Docker is installed but not running. Start Docker Desktop, or run: sudo systemctl start docker',
         'is not a docker command' => 'The Docker Compose plugin is missing. Install it from https://docs.docker.com/compose/install/',
     ];
@@ -49,9 +48,10 @@ class Compose
     {
         $this->ensureInstalled();
 
-        // The project name is pinned rather than inferred: compose still
-        // auto-loads a stray .env from the project directory, and a
-        // COMPOSE_PROJECT_NAME in it would otherwise rename the stack.
+        $this->scaffold->write($stack);
+
+        // Always pass the project name, so COMPOSE_PROJECT_NAME in a stray
+        // .env can't rename the stack.
         $command = [
             'docker', 'compose',
             '--project-directory', $stack->directory(),
@@ -75,11 +75,9 @@ class Compose
     }
 
     /**
-     * Only that the binary exists, which is a PATH lookup rather than a
-     * process. Whether the daemon is up and the compose plugin is installed
-     * is left to compose itself: probing for those cost two extra process
-     * spawns (~160ms) on every command to pre-empt an error compose already
-     * reports clearly in a fraction of that.
+     * Only check that the binary is on PATH. Compose already reports a
+     * stopped daemon or a missing plugin clearly, and checking those first
+     * would add about 160ms to every command.
      */
     protected function ensureInstalled(): void
     {
@@ -92,8 +90,7 @@ class Compose
     }
 
     /**
-     * Turn docker's own stderr into one of our hints where we recognise it,
-     * and pass it through verbatim otherwise.
+     * Replace docker's stderr with a hint when we recognize it.
      */
     protected function explain(ProcessResult $result, string $message): FlightException
     {

@@ -6,22 +6,20 @@ namespace App\Commands\Stack;
 
 use App\Commands\FlightCommand;
 use App\Support\Editor;
+use App\Support\GlobalConfig;
 
-/**
- * Extends FlightCommand rather than StackCommand: editing has to work when
- * Docker is down and, more importantly, when the configuration is currently
- * invalid — the stack preconditions would validate it and refuse to open the
- * very file the user needs to fix.
- */
 class ConfigCommand extends FlightCommand
 {
     protected $signature = 'stack:config';
 
     protected $description = 'Edit the Flight configuration in your editor';
 
-    public function fly(Editor $editor): int
+    public function handle(GlobalConfig $config, Editor $editor): int
     {
-        $file = $this->config->file();
+        // Not load(): it would reject the invalid file the user wants to fix.
+        $config->scaffold();
+
+        $file = $config->file();
 
         $before = md5_file($file);
 
@@ -29,11 +27,9 @@ class ConfigCommand extends FlightCommand
 
         $changed = md5_file($file) !== $before;
 
-        // Validated whether or not anything changed: a file that was already
-        // broken is still broken, and saying "no changes made" and exiting 0
-        // would imply it is fine. Reports now rather than on the next
-        // stack:up.
-        $this->config->load();
+        // Validate even when unchanged, so a file that was already invalid
+        // is reported now instead of on the next stack:up.
+        $config->load();
 
         $this->step($changed ? 'Configuration is valid' : 'No changes made');
 

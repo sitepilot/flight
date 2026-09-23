@@ -16,8 +16,15 @@ class Certificate
     public function __construct(protected GlobalConfig $config) {}
 
     /**
-     * Issue only when the certificate is missing or no longer matches the
-     * configured domain. Used by stack:up.
+     * The name the certificate covers, e.g. "*.flght.dev".
+     */
+    public function wildcard(): string
+    {
+        return '*.'.$this->config->domain();
+    }
+
+    /**
+     * Issue a certificate when it is missing or doesn't match the domain.
      *
      * @return bool whether a new certificate was issued
      */
@@ -32,9 +39,6 @@ class Certificate
         return true;
     }
 
-    /**
-     * Always issue a fresh certificate. Used by stack:secure.
-     */
     public function issue(): void
     {
         $binary = $this->binary();
@@ -48,9 +52,10 @@ class Certificate
             );
         }
 
-        // mkcert.exe is a Windows binary reached through WSL interop, and it
-        // cannot make sense of a Linux absolute path. Running it from inside
-        // the certs directory with relative names is the form that works.
+        Files::ensureDirectory($this->config->certsDirectory());
+
+        // Under WSL, mkcert.exe can't read Linux paths, so run it from the
+        // certs directory with relative file names.
         $result = Process::path($this->config->certsDirectory())
             ->timeout(120)
             ->run([
@@ -70,11 +75,7 @@ class Certificate
     }
 
     /**
-     * Whether the certificate on disk covers *.$domain and has not expired.
-     *
-     * The bash version only checked that the files existed, so changing the
-     * domain left a mismatched certificate in place until someone remembered
-     * to re-run `flight secure`.
+     * Whether the certificate on disk covers *.$domain and hasn't expired.
      */
     public function isValidFor(string $domain): bool
     {
@@ -82,7 +83,7 @@ class Certificate
             return false;
         }
 
-        // Without ext-openssl we can only tell that the files are there.
+        // Without ext-openssl, only check that the files exist.
         if (! function_exists('openssl_x509_parse')) {
             return true;
         }
@@ -113,8 +114,8 @@ class Certificate
     }
 
     /**
-     * Under WSL the certificate has to be issued by the Windows binary, so
-     * that the root CA lands in the Windows trust store.
+     * Under WSL, use the Windows binary so the root CA is added to the
+     * Windows trust store.
      */
     public function binary(): string
     {
