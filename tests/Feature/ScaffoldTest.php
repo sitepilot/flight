@@ -98,7 +98,7 @@ it('writes the traefik tls store as a side effect of preparing', function () {
 
     writeCompose();
 
-    $tls = Yaml::parseFile($this->flightDirectory.'/traefik/tls.yml');
+    $tls = Yaml::parseFile($this->flightDirectory.'/traefik/tls.yaml');
 
     expect($tls['tls']['stores']['default']['defaultCertificate'])->toBe([
         'certFile' => '/opt/flight/certs/ssl.crt',

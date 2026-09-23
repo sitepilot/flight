@@ -12,7 +12,7 @@ function project(): ProjectConfig
     return app(ProjectConfig::class);
 }
 
-it('finds flight.yml from a subdirectory of the project', function () {
+it('finds flight.yaml from a subdirectory of the project', function () {
     $root = flightProject();
 
     mkdir($root.'/src/Http', 0755, true);
@@ -22,11 +22,34 @@ it('finds flight.yml from a subdirectory of the project', function () {
         ->and(project()->composeFile())->toBe($root.'/.flight/compose.yaml');
 });
 
-it('explains a missing flight.yml', function () {
-    flightProject();
-    unlink(getcwd().'/flight.yml');
+it('finds flight.yml as well', function () {
+    $root = flightProject();
+    rename($root.'/flight.yaml', $root.'/flight.yml');
 
-    expect(fn () => project()->root())->toThrow(FlightException::class, 'No flight.yml found');
+    expect(project()->file())->toBe($root.'/flight.yml')
+        ->and(project()->services())->toHaveKey('php');
+});
+
+it('prefers flight.yaml when both exist', function () {
+    $root = flightProject();
+    file_put_contents($root.'/flight.yml', "services:\n  legacy:\n    type: php\n");
+
+    expect(project()->file())->toBe($root.'/flight.yaml');
+});
+
+it('names the file in use in its errors', function () {
+    $root = flightProject();
+    rename($root.'/flight.yaml', $root.'/flight.yml');
+    file_put_contents($root.'/flight.yml', "name: My App\nservices:\n  php:\n");
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, $root.'/flight.yml');
+});
+
+it('explains a missing flight.yaml', function () {
+    flightProject();
+    unlink(getcwd().'/flight.yaml');
+
+    expect(fn () => project()->root())->toThrow(FlightException::class, 'No flight.yaml found');
 });
 
 it('names the project after its directory by default', function () {
@@ -35,7 +58,7 @@ it('names the project after its directory by default', function () {
     expect(project()->name())->toBe('my-shop');
 });
 
-it('takes the name from flight.yml when set', function () {
+it('takes the name from flight.yaml when set', function () {
     flightProject(['name' => 'shop', 'services' => ['php' => null]]);
 
     expect(project()->name())->toBe('shop');
@@ -133,5 +156,5 @@ it('asks for services or a recipe', function () {
         return;
     }
 
-    throw new RuntimeException('Expected flight.yml to be rejected.');
+    throw new RuntimeException('Expected flight.yaml to be rejected.');
 });

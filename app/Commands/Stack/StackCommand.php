@@ -38,7 +38,7 @@ abstract class StackCommand extends FlightCommand
         ]);
 
         $this->note(sprintf(
-            'Expose a project by adding a flight.yml and running `flight up`, '.
+            'Expose a project by adding a flight.yaml and running `flight up`, '.
             'or by joining the `%s` network and labeling it '.
             'traefik.http.routers.<name>.rule=Host(`<name>.%s`)',
             $config->network(),

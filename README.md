@@ -67,7 +67,7 @@ Everything lives in `~/.config/flight`, which is created on first run:
 | `traefik/`              | you    | Traefik dynamic configuration, watched |
 | `certs/`                | flight | Wildcard certificate                 |
 | `compose.yaml`          | flight | Generated, overwritten on every run  |
-| `traefik/tls.yml`       | flight | Generated, overwritten on every run  |
+| `traefik/tls.yaml`      | flight | Generated, overwritten on every run  |
 
 ### Settings
 
@@ -88,7 +88,7 @@ services:
 
 The global stack runs Flight's built-in `proxy` recipe, which is
 [Traefik](#traefik). `services` in `config.yaml` is merged over it the same way
-`flight.yml` is merged over a [recipe](#recipes), so you only list what differs.
+`flight.yaml` is merged over a [recipe](#recipes), so you only list what differs.
 
 Every `*.<domain>` hostname needs to resolve to `127.0.0.1`. Changing `domain`
 issues a matching certificate on the next `flight stack:up`.
@@ -117,7 +117,8 @@ them.
 
 ## Projects
 
-Describe the services a project needs in a `flight.yml` in its root:
+Describe the services a project needs in a `flight.yaml` in its root. The file
+may also be called `flight.yml`; when both exist, `flight.yaml` is used:
 
 ```yaml
 services:
@@ -134,7 +135,7 @@ flight restart   # recreate the project's containers
 ```
 
 The project is served at `https://<project>.flght.dev`, where `<project>` is
-the project name: `name` from `flight.yml`, or the directory name when unset.
+the project name: `name` from `flight.yaml`, or the directory name when unset.
 
 ### Settings
 
@@ -157,7 +158,7 @@ recipe: laravel
 | --------- | ------------------------------- |
 | `laravel` | `php`, served from `public/`    |
 
-Services in `flight.yml` are merged over the recipe's, option by option, so you
+Services in `flight.yaml` are merged over the recipe's, option by option, so you
 only list what differs. Mappings are merged key by key, lists such as
 `hostnames` are replaced, and new services are added after the recipe's:
 
@@ -176,7 +177,7 @@ out, such as the PHP version, use the service defaults.
 
 ### Hostnames
 
-The first web service in `flight.yml` is served at `https://<project>.flght.dev`,
+The first web service in `flight.yaml` is served at `https://<project>.flght.dev`,
 every other one at `https://<project>-<service>.flght.dev`, where `<service>` is
 its key under `services`. For a project named `myapp` with the services `php`
 and `legacy`, `php` gets `myapp.flght.dev` and `legacy` gets
@@ -202,7 +203,7 @@ Flight writes the project's compose file to `.flight/`, together with a
 
 ## Services
 
-Services are configured under `services`, in `flight.yml` for a project and in
+Services are configured under `services`, in `flight.yaml` for a project and in
 `config.yaml` for the global stack. Each one is keyed by name, with its options
 as a mapping. Options you leave out use the defaults below.
 
@@ -237,7 +238,7 @@ services:
 | `docker_socket` | `/var/run/docker.sock` | Docker socket mounted into Traefik |
 | `hostnames`     | none                   | Extra subdomains for the dashboard |
 
-Any `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
+Any `.yaml` or `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
 restart, for middlewares, routers or services pointing outside Docker.
 
 ### PHP
@@ -257,7 +258,7 @@ stay yours.
 
 ## Exposing a project manually
 
-For projects without a `flight.yml`, attach your service to the `flight` network and label it:
+For projects without a `flight.yaml`, attach your service to the `flight` network and label it:
 
 ```yaml
 services:

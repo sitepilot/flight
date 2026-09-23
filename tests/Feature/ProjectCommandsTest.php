@@ -74,8 +74,8 @@ it('keeps compose away from the application env file', function () {
         ]);
 });
 
-it('reports an invalid flight.yml without running compose', function () {
-    file_put_contents($this->project.'/flight.yml', "services:\n  php:\n    version: '7.0'\n");
+it('reports an invalid flight.yaml without running compose', function () {
+    file_put_contents($this->project.'/flight.yaml', "services:\n  php:\n    version: '7.0'\n");
 
     $exitCode = $this->withoutMockingConsoleOutput()->artisan('up');
 
@@ -85,17 +85,17 @@ it('reports an invalid flight.yml without running compose', function () {
     Process::assertNothingRan();
 });
 
-it('explains when there is no flight.yml', function () {
-    unlink($this->project.'/flight.yml');
+it('explains when there is no flight.yaml', function () {
+    unlink($this->project.'/flight.yaml');
 
     $exitCode = $this->withoutMockingConsoleOutput()->artisan('up');
 
     expect($exitCode)->toBe(1)
-        ->and(Artisan::output())->toContain('No flight.yml found');
+        ->and(Artisan::output())->toContain('No flight.yaml found');
 });
 
 it('serves a recipe project and names the recipe', function () {
-    file_put_contents($this->project.'/flight.yml', "recipe: laravel\n");
+    file_put_contents($this->project.'/flight.yaml', "recipe: laravel\n");
 
     $this->withoutMockingConsoleOutput()->artisan('up');
 

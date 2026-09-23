@@ -8,45 +8,56 @@ use App\Exceptions\FlightException;
 use Illuminate\Support\Str;
 
 /**
- * The settings in a project's flight.yml.
+ * The settings in a project's flight.yaml or flight.yaml.
  */
 class ProjectConfig extends StackConfig
 {
-    public const string FILE = 'flight.yml';
+    /**
+     * The names a project file can have. flight.yaml wins when a directory
+     * has both.
+     */
+    public const array FILES = ['flight.yaml', 'flight.yml'];
 
-    protected ?string $root = null;
+    protected ?string $file = null;
 
     /**
-     * The directory containing flight.yml, found by searching up from the
-     * current directory, so commands work anywhere inside the project.
+     * Found by searching up from the current directory, so commands work
+     * anywhere inside the project.
      */
-    public function root(): string
+    public function file(): string
     {
-        if ($this->root !== null) {
-            return $this->root;
+        if ($this->file !== null) {
+            return $this->file;
         }
 
         $directory = (string) getcwd();
 
-        while (! is_file($directory.'/'.self::FILE)) {
+        while (true) {
+            foreach (self::FILES as $name) {
+                if (is_file($directory.'/'.$name)) {
+                    return $this->file = $directory.'/'.$name;
+                }
+            }
+
             $parent = dirname($directory);
 
             if ($parent === $directory) {
                 throw FlightException::make(
-                    'No '.self::FILE.' found in '.getcwd().' or any parent directory.',
-                    'Create a '.self::FILE.' in your project root that lists the services it needs.',
+                    'No flight.yaml found in '.getcwd().' or any parent directory.',
+                    'Create a flight.yaml in your project root that lists the services it needs.',
                 );
             }
 
             $directory = $parent;
         }
-
-        return $this->root = $directory;
     }
 
-    public function file(): string
+    /**
+     * The directory containing the project file.
+     */
+    public function root(): string
     {
-        return $this->root().'/'.self::FILE;
+        return dirname($this->file());
     }
 
     /**
@@ -78,7 +89,7 @@ class ProjectConfig extends StackConfig
 
     public function composeNote(): string
     {
-        return 'change flight.yml, or add your own services to .flight/compose.override.yaml.';
+        return 'change '.basename($this->file()).', or add your own services to .flight/compose.override.yaml.';
     }
 
     /**

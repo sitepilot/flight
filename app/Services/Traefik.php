@@ -93,7 +93,7 @@ class Traefik extends Service
      */
     public function prepare(): void
     {
-        YamlFile::write($this->global->traefikDirectory().'/tls.yml', [
+        YamlFile::write($this->global->traefikDirectory().'/tls.yaml', [
             'tls' => [
                 'stores' => [
                     'default' => [

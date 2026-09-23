@@ -40,7 +40,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | The recipe of the global stack. The services in config.yaml are merged
-    | over it, just like a project's flight.yml is merged over its recipe.
+    | over it, just like a project's flight.yaml is merged over its recipe.
     |
     */
 
@@ -51,7 +51,7 @@ return [
     | Services
     |--------------------------------------------------------------------------
     |
-    | The service types config.yaml and flight.yml can use, keyed by type
+    | The service types config.yaml and flight.yaml can use, keyed by type
     | name. A service's type defaults to its name.
     |
     */
@@ -66,7 +66,7 @@ return [
     | Recipes
     |--------------------------------------------------------------------------
     |
-    | The preset stacks, keyed by name. A flight.yml picks one with `recipe:`.
+    | The preset stacks, keyed by name. A flight.yaml picks one with `recipe:`.
     |
     */
 

@@ -142,7 +142,7 @@ it('serves the first routed service at the project hostname and the rest beside 
         ->and($services['admin']['labels']['traefik.http.routers.flight-myapp-admin.rule'])->toBe('Host(`myapp-admin.flght.dev`)');
 });
 
-it('follows the order of flight.yml when picking the first service', function () {
+it('follows the order of flight.yaml when picking the first service', function () {
     flightProject(['services' => ['admin' => ['type' => 'php'], 'php' => null]]);
 
     $services = writeProjectCompose()['services'];

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Validator;
 
 /**
  * One service in a stack's compose file, built from its options in
- * config.yaml or flight.yml. The options are validated when the service is
+ * config.yaml or flight.yaml. The options are validated when the service is
  * built, so mistakes are reported before anything is written or started.
  *
  * A service that routes() is served over HTTPS at the label the stack gives

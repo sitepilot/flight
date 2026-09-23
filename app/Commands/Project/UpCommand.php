@@ -17,7 +17,7 @@ class UpCommand extends ProjectCommand
 
     public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate): int
     {
-        // Report mistakes in flight.yml before anything is started.
+        // Report mistakes in flight.yaml before anything is started.
         $stack->validate();
 
         $this->step(sprintf(

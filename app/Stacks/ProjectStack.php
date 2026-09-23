@@ -9,7 +9,7 @@ use App\Support\ProjectConfig;
 use Illuminate\Contracts\Container\Container;
 
 /**
- * The services a project's flight.yml asks for. Generated files go in
+ * The services a project's flight.yaml asks for. Generated files go in
  * .flight, but the project root is the compose project directory.
  */
 class ProjectStack extends Stack

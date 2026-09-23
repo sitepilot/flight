@@ -45,7 +45,7 @@ function flightConfig(array $settings = []): string
 }
 
 /**
- * Create a temporary project with the given flight.yml and change into it.
+ * Create a temporary project with the given flight.yaml and change into it.
  * Returns its resolved path.
  *
  * @param  array<string, mixed>|string  $flight  settings, or raw YAML
@@ -57,7 +57,7 @@ function flightProject(array|string $flight = ['services' => ['php' => null]], s
     mkdir($directory, 0755, true);
 
     file_put_contents(
-        $directory.'/flight.yml',
+        $directory.'/flight.yaml',
         is_string($flight) ? $flight : Yaml::dump($flight, 4)
     );
 
