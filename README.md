@@ -1,23 +1,40 @@
 # ✈️ Flight
 
-A fast, effortless HTTPS development environment for your Docker projects.
+Flight gives every project on your machine its own trusted HTTPS address, such
+as `https://myapp.flght.dev`. There are no ports to remember, no certificate
+warnings and no hosts file to edit.
 
-Every project gets its own trusted `https://` domain. No ports to remember, no
-certificate warnings, no hosts file to edit. Start it once and forget it is
-running.
+You describe what a project needs in a small `flight.yaml` file, run
+`flight up`, and Flight starts it in Docker.
 
-Flight runs your shared development services as a single stack, routed by
-[Traefik](https://traefik.io) on `*.flght.dev`.
+- **Trusted HTTPS** for every project, with one local wildcard certificate.
+- **Recipes** for common projects, such as Laravel and WordPress.
+- **Provisioning** steps that set a project up on its first start.
 
-## Requirements
+## Contents
+
+- [Getting started](#getting-started)
+- [How Flight works](#how-flight-works)
+- [Commands](#commands)
+- [The flight.yaml file](#the-flightyaml-file)
+- [Guides](#guides)
+- [Service reference](#service-reference)
+- [Global configuration](#global-configuration)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
+## Getting started
+
+### Requirements
 
 - Docker with the Compose plugin
-- [mkcert](https://github.com/FiloSottile/mkcert) (`mkcert.exe` when running under WSL)
+- [mkcert](https://github.com/FiloSottile/mkcert), to create the certificate
+  (`mkcert.exe` on Windows when you use WSL)
 - PHP 8.4.1 or newer
 
-## Installation
+### Install
 
-Download the latest release into a directory on your `PATH`:
+Download Flight into a folder on your `PATH`:
 
 ```bash
 mkdir -p ~/.local/bin
@@ -25,161 +42,144 @@ curl -fsSL https://github.com/sitepilot/flight/releases/latest/download/flight -
 chmod +x ~/.local/bin/flight
 ```
 
-Make sure `~/.local/bin` is in your `PATH`, then check it is working:
+Check that it works:
 
 ```bash
 flight --version
 ```
 
-## Updating
+To update later, run `flight self-update`.
 
-```bash
-flight self-update
-```
+### Your first project
 
-The binary is replaced in place, so it needs to be writable — fine under
-`~/.local/bin`, `sudo` under `/usr/local/bin`. Only the released binary can
-update itself; from a source checkout, pull the repository instead.
+1. Create a project folder with a page to serve:
 
-## Usage
+   ```bash
+   mkdir -p hello/public
+   echo '<?php echo "Hello from Flight";' > hello/public/index.php
+   cd hello
+   ```
 
-```bash
-flight stack:up        # start the services, issuing a certificate when needed
-flight stack:down      # stop them
-flight stack:restart   # recreate the containers
-flight stack:secure    # regenerate the wildcard certificate and restart
-flight stack:config    # edit the configuration in $EDITOR
-```
+2. Add a `flight.yaml` that asks for a PHP service:
 
-Pass `-v` to any command to stream the raw `docker compose` output instead of a
-spinner, which is what you want when a start fails.
+   ```yaml
+   services:
+     php: {}
+   ```
 
-The Traefik dashboard is available at `https://traefik.flght.dev`.
+3. Start it:
 
-## Configuration
+   ```bash
+   flight up
+   ```
 
-Everything lives in `~/.config/flight`, which is created on first run:
+4. Open `https://hello.flght.dev` in your browser.
 
-| Path                    | Owner  | Description                          |
-| ----------------------- | ------ | ------------------------------------ |
-| `config.yaml`           | you    | Settings, see below                  |
-| `compose.override.yaml` | you    | Extra services, loaded when present  |
-| `.env`                  | you    | [Secrets](#secrets) for every project |
-| `traefik/`              | you    | Traefik dynamic configuration, watched |
-| `certs/`                | flight | Wildcard certificate                 |
-| `compose.yaml`          | flight | Generated, overwritten on every run  |
-| `traefik/tls.yaml`      | flight | Generated, overwritten on every run  |
+The address comes from the folder name, and PHP serves the `public/` folder by
+default. For Laravel and WordPress, a [recipe](#recipes) sets up the services
+for you.
 
-### Settings
+The first time, Flight creates a certificate and asks mkcert to trust it.
+Restart your browser afterwards so it picks up the new certificate authority.
 
-```yaml
-domain: flght.dev
-network: flight
+## How Flight works
 
-services:
-  traefik:
-    http_port: 8080
-```
+Flight runs two kinds of Docker stacks:
 
-| Key        | Default     | Description                              |
-| ---------- | ----------- | ---------------------------------------- |
-| `domain`   | `flght.dev` | Wildcard domain the stack serves         |
-| `network`  | `flight`    | Shared Docker network projects join      |
-| `services` |             | Options for the global services, see [Services](#services) |
+- **The Flight stack** runs once for your whole machine. It contains
+  [Traefik](https://traefik.io), a proxy that listens on ports 80 and 443 and
+  sends each `https://*.flght.dev` request to the right project.
+- **A project stack** runs the services one project needs, such as PHP and
+  MariaDB. It joins the Flight stack's network, so Traefik can reach it.
 
-The global stack runs Flight's built-in `proxy` recipe, which is
-[Traefik](#traefik). `services` in `config.yaml` is merged over it the same way
-`flight.yaml` is merged over a [recipe](#recipes), so you only list what differs.
+`flight up` starts the Flight stack when it isn't running yet, then the
+project. Stopping a project leaves the Flight stack running for your other
+projects.
 
-Every `*.<domain>` hostname needs to resolve to `127.0.0.1`. Changing `domain`
-issues a matching certificate on the next `flight stack:up`.
+Flight writes a normal Docker Compose file for every stack, so you can always
+look at what runs and why.
 
-Set `FLIGHT_CONFIG_DIR` to run against a different configuration directory,
-which is useful for trying things out without touching your real setup.
+## Commands
 
-### Extra services
+Run these from anywhere inside a project:
 
-Services in `~/.config/flight/compose.override.yaml` are merged into the
-project, so they start and stop with the stack:
+| Command         | What it does                                                   |
+| --------------- | -------------------------------------------------------------- |
+| `flight up`     | Starts the Flight stack when needed, then the project, then runs its [provisioning](#provisioning) steps |
+| `flight down`   | Stops the project; the Flight stack keeps running              |
+| `flight restart`| Recreates the project's containers                             |
 
-```yaml
-services:
-  mailpit:
-    image: axllent/mailpit
-    labels:
-      traefik.enable: true
-      traefik.http.routers.mailpit.rule: "Host(`mail.${FLIGHT_DOMAIN}`)"
-      traefik.http.services.mailpit.loadbalancer.server.port: 8025
-```
+These manage the Flight stack itself:
 
-`FLIGHT_DOMAIN`, `FLIGHT_NETWORK`, `FLIGHT_HTTP_PORT`, `FLIGHT_HTTPS_PORT` and
-`FLIGHT_DOCKER_SOCK` are exported to Compose, so override files can interpolate
-them.
+| Command               | What it does                                             |
+| --------------------- | -------------------------------------------------------- |
+| `flight stack:up`     | Starts the Flight stack, creating a certificate when needed |
+| `flight stack:down`   | Stops it                                                 |
+| `flight stack:restart`| Recreates its containers, e.g. after changing settings   |
+| `flight stack:secure` | Creates a new certificate and restarts the stack         |
+| `flight stack:config` | Opens the [global configuration](#global-configuration) in your editor |
+| `flight self-update`  | Updates Flight to the latest release                     |
 
-## Projects
+Add `-v` to any command to see Docker's full output instead of a spinner. This
+helps when something fails to start.
 
-Describe the services a project needs in a `flight.yaml` in its root. The file
-may also be called `flight.yml`; when both exist, `flight.yaml` is used:
+## The flight.yaml file
+
+Every project has a `flight.yaml` in its root folder. `flight.yml` works too;
+when both exist, Flight uses `flight.yaml`.
 
 ```yaml
-services:
+name: shop            # optional, defaults to the folder name
+recipe: laravel       # optional, a preset set of services
+
+services:             # the services to run
   php:
-    version: "8.4"
+    version: "8.3"
+
+provision:            # optional, commands to run on `flight up`
+  - name: Install dependencies
+    service: php
+    run: composer install
 ```
 
-Then, from anywhere inside the project:
-
-```bash
-flight up        # start the Flight stack when needed, then the project
-flight down      # stop the project; the Flight stack keeps running
-flight restart   # recreate the project's containers
-```
-
-The project is served at `https://<project>.flght.dev`, where `<project>` is
-the project name: `name` from `flight.yaml`, or the directory name when unset.
-
-### Settings
-
-| Key        | Default             | Description                                  |
-| ---------- | ------------------- | -------------------------------------------- |
-| `name`     | the directory name  | Project name, and the subdomain it is served on |
-| `recipe`   | none                | A preset stack, see [Recipes](#recipes)      |
-| `services` |                     | The services to run, see [Services](#services) |
-| `provision` | none               | Commands to run on `flight up`, see [Provisioning](#provisioning) |
+| Key         | What it is                                                     |
+| ----------- | -------------------------------------------------------------- |
+| `name`      | The project name, and its address: `https://<name>.flght.dev`. Defaults to the folder name. |
+| `recipe`    | A preset set of services, see [Recipes](#recipes)              |
+| `services`  | The services to run, see [Services](#services). Optional when you use a recipe. |
+| `provision` | Commands to run on every `flight up`, see [Provisioning](#provisioning) |
 
 ### Recipes
 
-A recipe is a preset stack for a kind of project. With a recipe, `services` is
-optional:
+A recipe is a ready-made set of services for a kind of project, so you don't
+have to list them yourself.
 
-```yaml
-recipe: laravel
-```
+| Recipe      | What you get                                                  |
+| ----------- | ------------------------------------------------------------- |
+| `laravel`   | PHP, serving the `public/` folder                             |
+| `wordpress` | PHP with WP-CLI and MariaDB, and WordPress installed for you, see the [WordPress guide](#a-wordpress-site) |
 
-| Recipe      | Services                                                     |
-| ----------- | ------------------------------------------------------------ |
-| `laravel`   | `php`, served from `public/`                                 |
-| `wordpress` | `php` with WP-CLI and `mariadb`; installs WordPress, see below |
-
-Services in `flight.yaml` are merged over the recipe's, option by option, so you
-only list what differs. Mappings are merged key by key, lists such as
-`hostnames` are replaced, and new services are added after the recipe's:
+You can change a recipe's services in `flight.yaml`. List only what you want to
+be different; everything else stays as the recipe set it:
 
 ```yaml
 recipe: laravel
 
 services:
   php:
-    version: "8.3"   # keeps the recipe's webroot
-  worker:
-    type: php
+    version: "8.3"   # the recipe still serves public/
+  mariadb: {}        # adds a database next to the recipe's services
 ```
 
-A recipe's services can be changed but not removed. Options a recipe leaves
-out, such as the PHP version, use the service defaults.
+A few rules:
 
-A recipe can have options of its own. Set them by mapping the recipe's name to
-its options:
+- Options are changed one by one. Lists, such as `hostnames`, are replaced as
+  a whole.
+- You can change and add services, but not remove the recipe's services.
+- Options neither the recipe nor you set use the service's
+  [defaults](#service-reference).
+
+Some recipes have options of their own. Put them under the recipe's name:
 
 ```yaml
 recipe:
@@ -187,24 +187,207 @@ recipe:
     admin_user: nick
 ```
 
-#### WordPress
+### Services
 
-The first `flight up` downloads WordPress into the project root, writes
-`wp-config.php` for the `mariadb` service and installs the site at the project
-URL. Each step is skipped once done, so later runs leave the site alone.
+Each entry under `services` is one container. Its name is also its type, so
+`php:` runs the [PHP service](#php). To run two of the same kind, give the
+second one another name and a `type`:
 
-| Option           | Default             | Description             |
-| ---------------- | ------------------- | ----------------------- |
-| `title`          | the project name    | Site title              |
-| `admin_user`     | `admin`             | Administrator username  |
-| `admin_password` | `admin`             | Administrator password  |
-| `admin_email`    | `admin@<domain>`    | Administrator email     |
+```yaml
+services:
+  php: {}
+  legacy:
+    type: php
+    version: "8.1"
+```
 
-Run WP-CLI in the container, e.g. `docker exec -it flight-myapp-php-1 wp plugin list`.
+Services reach each other by name: from PHP, a service called `mariadb` is at
+the host `mariadb`.
 
-To develop a theme or plugin, keep its repository as the project and place it
-inside WordPress with the PHP service's `project_path`. WordPress itself is then
-kept in `.flight/php/data`. A [provisioning](#provisioning) step activates it:
+See the [service reference](#service-reference) for every service and its options.
+
+### Hostnames
+
+Flight gives each web service an address under `flght.dev`:
+
+- The first web service gets `https://<project>.flght.dev`.
+- Any other web service gets `https://<project>-<service>.flght.dev`.
+
+For a project called `shop` with the services `php` and `legacy`, that is
+`shop.flght.dev` and `shop-legacy.flght.dev`.
+
+To answer on more addresses, for example for a multisite or an admin panel,
+add `hostnames`:
+
+```yaml
+services:
+  php:
+    hostnames: [admin, api]   # also admin.flght.dev and api.flght.dev
+```
+
+Each hostname is one subdomain, such as `admin` or `my-shop`, because the
+certificate covers one level under `flght.dev`. Two services can't share a
+hostname.
+
+### Provisioning
+
+Provisioning steps are commands that set your project up, such as installing
+dependencies. They run inside the project's containers on every `flight up`,
+right after the project has started. Steps from a recipe run first, then yours.
+
+```yaml
+provision:
+  - name: Install dependencies
+    service: php
+    run: composer install
+    unless: test -d vendor
+```
+
+| Key       | What it is                                                     |
+| --------- | -------------------------------------------------------------- |
+| `name`    | A short description, shown while the step runs                 |
+| `service` | The service to run the command in                              |
+| `run`     | The shell command to run                                       |
+| `unless`  | Optional. A check command; when it succeeds, the step is skipped |
+| `dir`     | Optional. The folder to run in, see below                      |
+| `env`     | Optional. Secret variables the step needs, see [Secrets](#secrets) |
+
+Because steps run on every `flight up`, each one should be safe to repeat. Add
+an `unless` check to skip a step once its work is done, or use a command that
+is harmless to run again. When a step fails, `flight up` stops and shows what
+went wrong.
+
+A step runs in the service's working folder, which for PHP is the app. Use
+`dir` to run it somewhere else:
+
+```yaml
+provision:
+  - name: Install tool dependencies
+    service: php
+    dir: tools
+    run: composer install
+```
+
+### Secrets
+
+License keys and tokens don't belong in `flight.yaml`, because you commit that
+file. Instead, list the variables a step needs under `env`, and keep their
+values somewhere private:
+
+```yaml
+provision:
+  - name: Install dependencies
+    service: php
+    env: [COMPOSER_AUTH]   # Composer reads this for private packages
+    run: composer install
+```
+
+Flight looks for each variable in three places and uses the first it finds:
+
+1. Your shell, e.g. `export COMPOSER_AUTH=...`
+2. The project's `.flight/.env`, for this project only
+3. `~/.config/flight/.env`, for all your projects
+
+```bash
+# ~/.config/flight/.env
+COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
+```
+
+Neither file is committed. If a variable can't be found, `flight up` stops
+before starting anything and tells you where to set it. Inside the step, use
+the variable as `${NAME}`, or let a tool read it, as Composer does here.
+
+Your project's own `.env` is left alone; that one belongs to your app.
+
+### The .flight folder
+
+Flight keeps its files for a project in a `.flight` folder, which it hides from
+Git for you.
+
+| Path                            | What it is                                    |
+| ------------------------------- | --------------------------------------------- |
+| `compose.yaml`                  | The generated Docker Compose file; don't edit it |
+| `compose.override.yaml`         | Your own additions, see below. This one can be committed. |
+| `.env`                          | Your project's [secrets](#secrets)            |
+| `<service>/build/`              | Files a service's image is built from         |
+| `<service>/data/`               | What a service keeps, such as WordPress when you [develop a theme](#a-wordpress-theme-or-plugin) |
+
+For anything Flight has no option for, add a `compose.override.yaml`. Docker
+Compose merges it into the generated file. For example, to mount an extra
+folder:
+
+```yaml
+# .flight/compose.override.yaml
+services:
+  php:
+    volumes:
+      - ./packages/my-package:/var/www/html/vendor/acme/my-package
+```
+
+Tools that scan your whole repository, such as linters, may need `.flight`
+added to their ignore list.
+
+## Guides
+
+### A Laravel app
+
+```yaml
+recipe: laravel
+
+services:
+  mariadb: {}
+```
+
+Point Laravel's `.env` at the database:
+
+```dotenv
+DB_CONNECTION=mariadb
+DB_HOST=mariadb
+DB_DATABASE=flight
+DB_USERNAME=flight
+DB_PASSWORD=flight
+```
+
+Then run `flight up` and open `https://<project>.flght.dev`. To run Artisan,
+open a shell in the container:
+
+```bash
+docker exec -it flight-<project>-php-1 php artisan migrate
+```
+
+### A WordPress site
+
+Create an empty folder with this `flight.yaml`:
+
+```yaml
+recipe: wordpress
+```
+
+Run `flight up`. The first time, Flight downloads WordPress into the folder,
+creates `wp-config.php` and installs the site. Log in at
+`https://<project>.flght.dev/wp-admin` with `admin` / `admin`.
+
+Later runs skip these steps, so your site is left as it is.
+
+| Recipe option    | Default          | What it is              |
+| ---------------- | ---------------- | ----------------------- |
+| `title`          | the project name | Site title              |
+| `admin_user`     | `admin`          | Administrator username  |
+| `admin_password` | `admin`          | Administrator password  |
+| `admin_email`    | `admin@flght.dev`| Administrator email     |
+
+WP-CLI is installed in the PHP container:
+
+```bash
+docker exec -it flight-<project>-php-1 wp plugin list
+```
+
+### A WordPress theme or plugin
+
+When your repository is a theme or a plugin, WordPress itself should stay out
+of it. Tell Flight where your project belongs inside WordPress with
+`project_path`. Flight then keeps WordPress in `.flight/php/data` and mounts your
+repository into it:
 
 ```yaml
 recipe: wordpress
@@ -220,193 +403,134 @@ provision:
     unless: wp theme is-active my-theme
 ```
 
-### Provisioning
+Run `flight up`, and your theme is installed and active in a fresh WordPress
+site. You can browse the WordPress files in `.flight/php/data`.
 
-Steps run in the project's containers on every `flight up`, once the project
-has started. A recipe can bring its own steps, and `provision` adds yours,
-which run after the recipe's:
+## Service reference
 
-```yaml
-provision:
-  - name: Install dependencies
-    service: php
-    run: composer install
-    unless: test -d vendor
-```
+### PHP
 
-| Key       | Description                                                  |
-| --------- | ------------------------------------------------------------ |
-| `name`    | Shown while the step runs                                    |
-| `service` | The service to run it in                                     |
-| `run`     | Shell command, run as the container's user                   |
-| `unless`  | Optional check; when it exits 0 the step is skipped as done  |
-| `dir`     | Optional directory, relative to the service's working directory (the app for PHP), e.g. `tools` |
-| `env`     | Optional variables the step needs, see [Secrets](#secrets)   |
-
-A step runs in the service's working directory, which for PHP is the app. Use
-`dir` to run it somewhere else, such as a folder with its own dependencies:
+Runs PHP with a web server, based on
+[serversideup/php](https://serversideup.net/open-source/docker-php/). Your
+project is available in the container at `/var/www/html`.
 
 ```yaml
-provision:
-  - name: Install tool dependencies
-    service: php
-    dir: tools
-    run: composer install
+services:
+  php:
+    version: "8.3"
+    extensions: [intl]
 ```
 
-Since steps run on every `flight up`, give each one an `unless` check, or make
-the command itself safe to repeat. A failing step stops `flight up` and shows
-its output.
+| Option         | Default     | What it is                                         |
+| -------------- | ----------- | -------------------------------------------------- |
+| `version`      | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                |
+| `server`       | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`          |
+| `webroot`      | `public`    | The folder the web server serves; `.` for the root |
+| `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]`       |
+| `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`      |
+| `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/php/data`. |
+| `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
 
-### Secrets
+The image is built with your user and group ID, so files the container creates
+in your project belong to you.
 
-Keep tokens and license keys out of `flight.yaml` by listing them in a step's
-`env`. The step's command and its check get them as environment variables, so
-a tool can read them itself or the command can use them as `${NAME}`:
+### MariaDB
 
-```yaml
-provision:
-  - name: Install dependencies
-    service: php
-    env: [COMPOSER_AUTH]   # read by Composer for private packages
-    run: composer install
-    unless: test -d vendor
-```
+Runs a [MariaDB](https://mariadb.org) database. Other services connect to it
+at the host `mariadb`. Its data is kept in a Docker volume, so it survives
+`flight down`.
 
-Flight looks up each variable in your shell, then in the project's
-`.flight/.env`, then in `~/.config/flight/.env`, which suits tokens you use in
-every project:
+| Option     | Default  | What it is                               |
+| ---------- | -------- | ---------------------------------------- |
+| `version`  | `11.8`   | `10.6`, `10.11`, `11.4` or `11.8`        |
+| `database` | `flight` | The database created on the first start  |
+| `user`     | `flight` | A user with access to that database      |
+| `password` | `flight` | The password for that user and for `root` |
+
+The database, user and password are only set on the very first start. To start
+over with an empty database, remove the volume from the project folder:
 
 ```bash
-# ~/.config/flight/.env
-COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
-```
-
-Neither file is committed. A step whose variable is set nowhere stops
-`flight up` before anything starts. The value is handed to the container
-without appearing on the command line; your project's own `.env` is left to
-your app.
-
-### Hostnames
-
-The first web service in `flight.yaml` is served at `https://<project>.flght.dev`,
-every other one at `https://<project>-<service>.flght.dev`, where `<service>` is
-its key under `services`. For a project named `myapp` with the services `php`
-and `legacy`, `php` gets `myapp.flght.dev` and `legacy` gets
-`myapp-legacy.flght.dev`.
-
-A web service can answer on more hostnames too, for a multisite, tenants or a
-separate admin domain:
-
-```yaml
-services:
-  php:
-    hostnames: [shop, api]   # also shop.flght.dev and api.flght.dev
-```
-
-Each one is a single subdomain, since that is what the wildcard certificate
-covers. Two services serving the same hostname is an error.
-
-### Generated files
-
-Flight writes the project's compose file to `.flight/`, together with a
-`.gitignore` that keeps it out of your repository. Each service has a folder
-there: `build/` for the files its image is built from, and `data/` for what
-it keeps, such as the app the project is placed in with `project_path`.
-
-Services in `.flight/compose.override.yaml` are merged in and can be
-committed. Use it for anything Flight has no option for, such as extra mounts:
-
-```yaml
-services:
-  php:
-    volumes:
-      - ./packages/my-package:/var/www/html/vendor/acme/my-package
-```
-
-Tools that scan the whole repository, such as linters or packaging scripts, may
-need `.flight` excluded.
-
-## Services
-
-Services are configured under `services`, in `flight.yaml` for a project and in
-`config.yaml` for the global stack. Each one is keyed by name, with its options
-as a mapping. Options you leave out use the defaults below.
-
-A service's type is its name, unless it sets `type`, so a stack can run two of
-the same kind:
-
-```yaml
-services:
-  php: {}
-  legacy:
-    type: php
-    version: "8.1"
+docker compose -p flight-<project> down -v
 ```
 
 ### Traefik
 
-The reverse proxy in the global stack. It terminates TLS for `*.<domain>` and
-routes to containers on the shared network. Its dashboard is served at
-`https://traefik.<domain>`.
+The proxy in the Flight stack. You don't add it to a project; it is configured
+in the [global configuration](#global-configuration). Its dashboard is at
+`https://traefik.flght.dev`.
+
+| Option          | Default                | What it is                         |
+| --------------- | ---------------------- | ---------------------------------- |
+| `http_port`     | `80`                   | The port on your machine for HTTP  |
+| `https_port`    | `443`                  | The port on your machine for HTTPS |
+| `docker_socket` | `/var/run/docker.sock` | The Docker socket Traefik watches  |
+| `hostnames`     | none                   | Extra addresses for the dashboard  |
+
+## Global configuration
+
+Settings that apply to all projects live in `~/.config/flight/config.yaml`.
+Open it with `flight stack:config`, and run `flight stack:restart` after
+changing it.
 
 ```yaml
-# config.yaml
+domain: flght.dev
+network: flight
+
 services:
   traefik:
     http_port: 8080
 ```
 
-| Option          | Default                | Description                        |
-| --------------- | ---------------------- | ---------------------------------- |
-| `http_port`     | `80`                   | Host port bound to HTTP            |
-| `https_port`    | `443`                  | Host port bound to HTTPS           |
-| `docker_socket` | `/var/run/docker.sock` | Docker socket mounted into Traefik |
-| `hostnames`     | none                   | Extra subdomains for the dashboard |
+| Key        | Default     | What it is                                      |
+| ---------- | ----------- | ----------------------------------------------- |
+| `domain`   | `flght.dev` | The domain your projects are served under       |
+| `network`  | `flight`    | The Docker network projects join                |
+| `services` |             | Options for the Flight stack's services, such as [Traefik](#traefik) |
 
-Any `.yaml` or `.yml` file you drop in `~/.config/flight/traefik` is picked up without a
-restart, for middlewares, routers or services pointing outside Docker.
+Every `*.<domain>` address must point to `127.0.0.1`. After changing `domain`,
+run `flight stack:secure` to create a matching certificate.
 
-### PHP
+The folder holds a few more files:
 
-Runs [serversideup/php](https://serversideup.net/open-source/docker-php/)
-with the app at `/var/www/html`. The app is the project, unless `project_path`
-places the project inside an app kept in `.flight/php/data`.
+| Path                    | What it is                                         |
+| ----------------------- | -------------------------------------------------- |
+| `config.yaml`           | The settings above                                 |
+| `.env`                  | [Secrets](#secrets) for all your projects          |
+| `compose.override.yaml` | Extra services for the Flight stack, see below     |
+| `traefik/`              | Your own Traefik configuration files, loaded automatically |
+| `certs/`                | The certificate; managed by Flight                 |
+| `compose.yaml`          | The generated Compose file; don't edit it          |
 
-| Option    | Default     | Description                                          |
-| --------- | ----------- | ---------------------------------------------------- |
-| `version` | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                  |
-| `server`  | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`            |
-| `webroot` | `public`    | Document root relative to the app; `.` for the root  |
-| `project_path` | `.`    | Where the project sits in the app, e.g. `modules/my-module`; the app is then kept in `.flight/php/data` |
-| `extensions` | none     | Extra PHP extensions, such as `[mysqli, gd]`         |
-| `wp_cli`  | `false`     | Install [WP-CLI](https://wp-cli.org) as `wp`         |
-| `hostnames` | none      | Extra subdomains to serve, see [Hostnames](#hostnames) |
+### Adding services to the Flight stack
 
-The image is built with your user and group id, so files the container writes
-stay yours. Extensions are installed with serversideup's
-`install-php-extensions` when the image is built.
+Services in `~/.config/flight/compose.override.yaml` start and stop with the
+Flight stack. This adds [Mailpit](https://mailpit.axllent.org) at
+`https://mail.flght.dev`:
 
-### MariaDB
+```yaml
+services:
+  mailpit:
+    image: axllent/mailpit
+    labels:
+      traefik.enable: true
+      traefik.http.routers.mailpit.rule: "Host(`mail.${FLIGHT_DOMAIN}`)"
+      traefik.http.services.mailpit.loadbalancer.server.port: 8025
+```
 
-Runs [MariaDB](https://mariadb.org) with its data in a named volume, so it
-survives `flight down`. Other services reach it at its service name, e.g.
-`mariadb`. `flight up` waits until it accepts connections.
+In this file you can use `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`, `FLIGHT_HTTP_PORT`,
+`FLIGHT_HTTPS_PORT` and `FLIGHT_DOCKER_SOCK`.
 
-| Option     | Default  | Description                              |
-| ---------- | -------- | ---------------------------------------- |
-| `version`  | `11.8`   | `10.6`, `10.11`, `11.4` or `11.8`        |
-| `database` | `flight` | Database created on first start          |
-| `user`     | `flight` | User with access to that database        |
-| `password` | `flight` | Password of that user, and of `root`     |
+### Custom Traefik configuration
 
-The database, user and password only apply when the volume is first
-created. To start over, remove it with `docker compose -p flight-myapp down -v`
-from the project root.
+Any `.yaml` or `.yml` file in `~/.config/flight/traefik` is loaded by Traefik
+right away, without a restart. Use it for middlewares, or to route to
+something outside Docker.
 
-## Exposing a project manually
+### Projects without a flight.yaml
 
-For projects without a `flight.yaml`, attach your service to the `flight` network and label it:
+Any Compose project can use Flight's HTTPS. Join the `flight` network and add
+Traefik labels:
 
 ```yaml
 services:
@@ -424,6 +548,32 @@ networks:
     external: true
 ```
 
+## Troubleshooting
+
+**Something doesn't start.** Run the command again with `-v` to see Docker's
+full output.
+
+**The browser warns about the certificate.** Restart your browser after the
+first start, so it picks up mkcert's certificate authority. If that doesn't
+help, run `flight stack:secure`.
+
+**Port 80 or 443 is already in use.** Another program is using it. Stop that
+program, or pick other ports in the [global configuration](#global-configuration):
+
+```yaml
+services:
+  traefik:
+    http_port: 8080
+    https_port: 8443
+```
+
+**Your settings are rejected.** Flight checks `flight.yaml` and `config.yaml`
+before starting anything. The error names the exact setting, such as
+`services.php.version`, and what it expects.
+
+**You want to try something without touching your setup.** Point Flight at
+another configuration folder: `FLIGHT_CONFIG_DIR=/tmp/flight-test flight stack:up`.
+
 ## Development
 
 ```bash
@@ -436,8 +586,8 @@ composer install
 `./flight` runs straight from the checkout.
 
 ```bash
-composer test   # pest
-composer lint   # pint
+composer test   # run the tests with Pest
+composer lint   # format the code with Pint
 ```
 
 To build a binary:
@@ -446,12 +596,14 @@ To build a binary:
 php flight app:build flight --build-version=1.0.0
 ```
 
+`flight self-update` only works for a downloaded release. In a checkout, pull
+the repository instead.
+
 ### Releasing
 
-Publish a release from the GitHub releases page with a tag in the form
-`v1.0.0`. The `Release` workflow builds the binary and attaches it to the
-release.
+Publish a release on GitHub with a tag such as `v1.0.0`. The `Release`
+workflow builds the binary and attaches it to the release.
 
 ## License
 
-Flight is open-sourced software licensed under the [MIT license](LICENSE.md).
+Flight is open-source software licensed under the [MIT license](LICENSE.md).
