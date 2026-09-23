@@ -12,12 +12,18 @@ use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * A YAML file that describes a stack: a few top-level settings and a
- * services section merged over a recipe. Only the shape of each service is
- * checked here; each service validates its own options.
+ * A YAML file that describes a stack: a few top-level settings, an app and
+ * services, merged over a recipe. The app becomes the service `app`. Only the
+ * shape of each service is checked here; each service validates its own
+ * options.
  */
 abstract class StackConfig
 {
+    /**
+     * The `app` setting, and the service it becomes.
+     */
+    public const string APP = 'app';
+
     /** @var array<string, mixed>|null */
     protected ?array $settings = null;
 
@@ -44,10 +50,9 @@ abstract class StackConfig
     abstract public function filesDirectory(): string;
 
     /**
-     * The hostname label of a routed service. $routed counts the routed
-     * services before it.
+     * The hostname label of a routed service.
      */
-    abstract public function label(string $service, int $routed): string;
+    abstract public function label(string $service): string;
 
     /**
      * Rules for the top-level keys other than services.
@@ -164,21 +169,95 @@ abstract class StackConfig
 
         $this->recipe = $this->makeRecipe($this->recipeSetting($settings));
 
-        $merged = $this->merge(
-            $this->recipe?->services() ?? [],
-            (array) ($settings['services'] ?? []),
-        );
+        // A string is short for its type: `db: mariadb:11.8`.
+        $shorthand = fn (mixed $entry): mixed => is_string($entry) ? ['type' => $entry] : $entry;
 
-        $this->validateServices($merged);
+        $services = array_map($shorthand, (array) ($settings['services'] ?? []));
+        $file = $shorthand($settings[self::APP] ?? null);
+
+        foreach ($services as $name => $options) {
+            $this->ensureRecipeType("services.{$name}", $this->recipe?->services()[$name] ?? null, $options);
+        }
+
+        $this->ensureRecipeType(self::APP, $this->recipe?->app(), $file);
+
+        $merged = $this->merge($this->recipe?->services() ?? [], $services);
+
+        if (array_key_exists(self::APP, $merged)) {
+            throw $this->invalid('Expected another name; "app" is your app, set at the top level as `app:`.', 'services.'.self::APP);
+        }
+
+        if ($file !== null && ! $this->isMap($file)) {
+            throw $this->invalid('Expected app to be a type such as `php:8.4`, or a mapping with a type.', self::APP);
+        }
+
+        if ($this->recipe?->app() !== null || $file !== null) {
+            $merged = [self::APP => $this->merge($this->recipe?->app() ?? [], (array) $file), ...$merged];
+        }
 
         $services = [];
 
-        // A bare `php:` is null and means "use the defaults".
         foreach ($merged as $name => $options) {
-            $services[$name] = ['type' => $name, ...(array) $options];
+            $services[$name] = $this->service((string) $name, $options);
         }
 
         return $this->settings = [...$settings, 'services' => $services];
+    }
+
+    /**
+     * Keep the recipe's type when the file changes it, so the recipe's options
+     * still fit: `php:8.5` over the recipe's `php` is fine, `mariadb` is not.
+     */
+    protected function ensureRecipeType(string $path, mixed $recipe, mixed $file): void
+    {
+        $base = fn (mixed $options): ?string => is_string($options['type'] ?? null)
+            ? explode(':', $options['type'])[0]
+            : null;
+
+        $expected = is_array($recipe) ? $base($recipe) : null;
+        $actual = is_array($file) ? $base($file) : null;
+
+        if ($expected !== null && $actual !== null && $expected !== $actual) {
+            throw $this->invalid("Expected {$expected}, as set by the {$this->recipe?->name()} recipe; you can change its version, such as `{$expected}:<version>`.", "{$path}.type");
+        }
+    }
+
+    /**
+     * A service's options, with its type split from its version: `type:
+     * mariadb:11.8` becomes the type "mariadb" and the version "11.8". The
+     * type is required, from flight.yaml or the recipe.
+     *
+     * @return array<string, mixed>
+     */
+    protected function service(string $name, mixed $options): array
+    {
+        $app = $name === self::APP;
+        $path = $app ? self::APP : "services.{$name}";
+        $example = $app ? 'php:8.4' : 'mariadb:11.8';
+
+        if (! $app && ! preg_match('/^[a-z0-9][a-z0-9_-]*$/', $name)) {
+            throw $this->invalid('Expected a lowercase service name such as "db".', $path);
+        }
+
+        if (! $this->isMap($options)) {
+            throw $this->invalid("Expected a type such as `{$example}`, or a mapping with a type.", $path);
+        }
+
+        if (array_key_exists('version', $options)) {
+            throw $this->invalid("Expected the version in the type, such as `type: {$example}`.", "{$path}.version");
+        }
+
+        // Only some types can run an app.
+        $types = $app ? (array) config('flight.app_types') : array_keys((array) config('flight.services'));
+        $type = $options['type'] ?? null;
+
+        if (! is_string($type) || ! preg_match('/^([a-z0-9_-]+)(?::([A-Za-z0-9._-]+))?$/', $type, $match) || ! in_array($match[1], $types, true)) {
+            throw $this->invalid("Expected a type such as `{$example}`, one of: ".implode(', ', $types).'.', "{$path}.type");
+        }
+
+        unset($options['type']);
+
+        return ['type' => $match[1], ...(isset($match[2]) ? ['version' => $match[2]] : []), ...$options];
     }
 
     /**
@@ -282,7 +361,7 @@ abstract class StackConfig
         $keys = array_filter(array_keys($rules), fn (string $key): bool => ! str_contains($key, '*'));
 
         $validator = Validator::make($settings, $rules, [
-            'services.array' => 'Expected services to be a mapping, such as `php: {}`.',
+            'services.array' => 'Expected services to be a mapping of names to types, such as `db: mariadb:11.8`.',
             ...$this->messages(),
         ], attributes: array_combine($keys, $keys));
 
@@ -296,25 +375,7 @@ abstract class StackConfig
         $services = $settings['services'] ?? [];
 
         if ($services !== [] && array_is_list($services)) {
-            throw $this->invalid('Expected services to be a mapping, such as `php: {}`.', 'services');
-        }
-    }
-
-    /**
-     * Check the merged services, so the recipe's are checked too.
-     *
-     * @param  array<array-key, mixed>  $services
-     */
-    protected function validateServices(array $services): void
-    {
-        foreach ($services as $name => $options) {
-            if (! preg_match('/^[a-z0-9][a-z0-9_-]*$/', (string) $name)) {
-                throw $this->invalid('Expected a lowercase service name such as "php".', "services.{$name}");
-            }
-
-            if ($options !== null && (! is_array($options) || ($options !== [] && array_is_list($options)))) {
-                throw $this->invalid('Expected a mapping of options, such as `version: "8.4"`.', "services.{$name}");
-            }
+            throw $this->invalid('Expected services to be a mapping of names to types, such as `db: mariadb:11.8`.', 'services');
         }
     }
 

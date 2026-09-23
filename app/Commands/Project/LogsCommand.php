@@ -11,7 +11,7 @@ use App\Support\Compose;
 class LogsCommand extends ProjectCommand
 {
     protected $signature = 'logs
-        {service? : The service to show logs for, defaults to the first}
+        {service? : The service to show logs for, defaults to the app}
         {--f|follow : Keep showing new logs}
         {--tail= : Only show this many of the latest lines}';
 

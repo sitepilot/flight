@@ -23,16 +23,21 @@ class StubRecipe extends Recipe
         return ['greeting' => ['required', 'in:hello,hi']];
     }
 
+    public function app(): array
+    {
+        return ['type' => 'php'];
+    }
+
     public function services(): array
     {
-        return ['php' => []];
+        return [];
     }
 
     public function provision(Context $context): array
     {
         return [
-            Step::make('Greet')->in('php')->run("echo {$this->option('greeting')} {$context->url()}")->unless('test -f greeted'),
-            Step::make('Always')->in('php')->run('true'),
+            Step::make('Greet')->run("echo {$this->option('greeting')} {$context->url()}")->unless('test -f greeted'),
+            Step::make('Always')->run('true'),
         ];
     }
 }

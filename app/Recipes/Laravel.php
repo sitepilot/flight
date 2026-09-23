@@ -31,16 +31,20 @@ class Laravel extends Recipe
         ];
     }
 
-    public function services(): array
+    public function app(): array
     {
         $workers = array_filter(self::WORKERS, fn (string $name): bool => (bool) $this->option($name), ARRAY_FILTER_USE_KEY);
 
         return [
-            'php' => [
-                // Laravel is served from public/, whatever the PHP default.
-                'webroot' => 'public',
-                ...($workers === [] ? [] : ['workers' => $workers]),
-            ],
+            'type' => 'php',
+            // Laravel is served from public/, whatever the PHP default.
+            'webroot' => 'public',
+            ...($workers === [] ? [] : ['workers' => $workers]),
         ];
+    }
+
+    public function services(): array
+    {
+        return [];
     }
 }

@@ -1,7 +1,9 @@
 <?php
 
+use App\Stacks\ProjectStack;
 use App\Support\Certificate;
 use App\Support\GlobalConfig;
+use App\Support\Scaffold;
 use Illuminate\Filesystem\Filesystem;
 use Mockery\MockInterface;
 use Symfony\Component\Yaml\Yaml;
@@ -50,7 +52,7 @@ function flightConfig(array $settings = []): string
  *
  * @param  array<string, mixed>|string  $flight  settings, or raw YAML
  */
-function flightProject(array|string $flight = ['services' => ['php' => null]], string $name = 'myapp'): string
+function flightProject(array|string $flight = ['app' => ['type' => 'php']], string $name = 'myapp'): string
 {
     $directory = sys_get_temp_dir().'/flight-project-'.bin2hex(random_bytes(6)).'/'.$name;
 
@@ -69,6 +71,16 @@ function flightProject(array|string $flight = ['services' => ['php' => null]], s
     // On macOS the temporary directory is a symlink, and getcwd() returns
     // the real path.
     return (string) realpath($directory);
+}
+
+/**
+ * Generate the current project's compose file and return it parsed.
+ */
+function writeProjectCompose(): array
+{
+    app(Scaffold::class)->write(app(ProjectStack::class));
+
+    return Yaml::parseFile(getcwd().'/.flight/compose.yaml');
 }
 
 function removeDirectory(string $directory): void

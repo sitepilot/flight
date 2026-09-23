@@ -60,11 +60,10 @@ To update later, run `flight self-update`.
    cd hello
    ```
 
-2. Add a `flight.yaml` that asks for a PHP service:
+2. Add a `flight.yaml` that runs it on PHP:
 
    ```yaml
-   services:
-     php: {}
+   app: php:8.4
    ```
 
 3. Start it:
@@ -76,8 +75,8 @@ To update later, run `flight self-update`.
 4. Open `https://hello.flght.dev` in your browser.
 
 The address comes from the folder name, and PHP serves the `public/` folder by
-default. For Laravel and WordPress, a [recipe](#recipes) sets up the services
-for you.
+default. For Laravel and WordPress, a [recipe](#recipes) sets up the app and
+services for you.
 
 The first time, Flight creates a certificate and asks mkcert to trust it.
 Restart your browser afterwards so it picks up the new certificate authority.
@@ -89,8 +88,9 @@ Flight runs two kinds of Docker stacks:
 - **The Flight stack** runs once for your whole machine. It contains
   [Traefik](https://traefik.io), a proxy that listens on ports 80 and 443 and
   sends each `https://*.flght.dev` request to the right project.
-- **A project stack** runs the services one project needs, such as PHP and
-  MariaDB. It joins the Flight stack's network, so Traefik can reach it.
+- **A project stack** runs the app and services one project needs, such as
+  PHP and MariaDB. Its app and other web services join the Flight stack's
+  network, so Traefik can reach them; databases stay private to the project.
 
 `flight up` starts the Flight stack when it isn't running yet, then the
 project. Stopping a project leaves the Flight stack running for your other
@@ -109,9 +109,9 @@ Run these from anywhere inside a project:
 | `flight down`   | Stops the project; the Flight stack keeps running              |
 | `flight restart`| Recreates the project's containers                             |
 | `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `compose.override.yaml` and `.env`. |
-| `flight shell [service]` | Opens a shell in a container, by default the project's first service |
-| `flight exec -- <command>` | Runs a command in a container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
-| `flight logs [service]` | Shows a container's logs, by default the project's first service. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
+| `flight shell [service]` | Opens a shell in a container, by default your app's |
+| `flight exec -- <command>` | Runs a command in your app's container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
+| `flight logs [service]` | Shows a container's logs, by default your app's. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
 
 These manage the Flight stack itself:
 
@@ -138,45 +138,68 @@ when both exist, Flight uses `flight.yaml`.
 
 ```yaml
 name: shop            # optional, defaults to the folder name
-recipe: laravel       # optional, a preset set of services
 
-services:             # the services to run
-  php:
-    version: "8.3"
+app: php:8.3          # what runs your app
+recipe: laravel       # optional, sets up the app and services for Laravel
+
+services:             # what your app uses, such as a database
+  db: mariadb:11.8
 
 provision:            # optional, commands to run on `flight up`
   - name: Install dependencies
-    service: php
     run: composer install
 ```
 
 | Key         | What it is                                                     |
 | ----------- | -------------------------------------------------------------- |
 | `name`      | The project name, and its address: `https://<name>.flght.dev`. Defaults to the folder name. |
-| `recipe`    | A preset set of services, see [Recipes](#recipes)              |
-| `services`  | The services to run, see [Services](#services). Optional when you use a recipe. |
+| `app`       | What runs your app, see [App](#app)                            |
+| `recipe`    | A preset app and services, see [Recipes](#recipes)             |
+| `services`  | What your app uses, see [Services](#services)                  |
 | `provision` | Commands to run on every `flight up`, see [Provisioning](#provisioning) |
+
+A project needs an app, services or a recipe.
+
+### App
+
+`app` says what runs your app: its type, with a version after the colon.
+
+```yaml
+app: php:8.4          # or just `php` for the default version
+```
+
+To set options, write it as a mapping with a `type`:
+
+```yaml
+app:
+  type: php:8.4
+  node: "22"          # Node next to PHP, e.g. to build assets
+  hostnames: [admin]
+```
+
+Your app runs as the `app` service and is served at
+`https://<project>.flght.dev`. `flight exec`, `flight shell` and `flight logs`
+use it unless you name another service. See [PHP](#php) for its options.
 
 ### Recipes
 
-A recipe is a ready-made set of services for a kind of project, so you don't
-have to list them yourself.
+A recipe is a ready-made app and services for a kind of project, so you
+don't have to list them yourself.
 
 | Recipe      | What you get                                                  |
 | ----------- | ------------------------------------------------------------- |
 | `laravel`   | PHP, serving the `public/` folder, and optionally a queue worker and scheduler, see the [Laravel guide](#a-laravel-app) |
 | `wordpress` | PHP with WP-CLI and MariaDB, and WordPress installed for you, see the [WordPress guide](#a-wordpress-site) |
 
-You can change a recipe's services in `flight.yaml`. List only what you want to
-be different; everything else stays as the recipe set it:
+You can change a recipe's app and services in `flight.yaml`. List only what
+you want to be different; everything else stays as the recipe set it:
 
 ```yaml
+app: php:8.3         # the recipe still serves public/
 recipe: laravel
 
 services:
-  php:
-    version: "8.3"   # the recipe still serves public/
-  mariadb: {}        # adds a database next to the recipe's services
+  db: mariadb        # adds a database next to the recipe's app
 ```
 
 A few rules:
@@ -184,8 +207,12 @@ A few rules:
 - Options are changed one by one. Lists, such as `hostnames`, are replaced as
   a whole.
 - You can change and add services, but not remove the recipe's services.
-- Options neither the recipe nor you set use the service's
+- Options neither the recipe nor you set use their
   [defaults](#service-reference).
+- To change a recipe's app or service, you don't repeat its `type`. To change
+  its version, write the same type with another version, such as
+  `app: php:8.3`. Another type, such as `mariadb` for Laravel's app, is an
+  error, because the recipe's options wouldn't fit it.
 
 Some recipes have options of their own. Put them under the recipe's name:
 
@@ -197,36 +224,50 @@ recipe:
 
 ### Services
 
-Each entry under `services` is one container. Its name is also its type, so
-`php:` runs the [PHP service](#php). To run two of the same kind, give the
-second one another name and a `type`:
+Each entry under `services` is one container your app uses, such as a database
+or a cache. You choose its name, and its type says what it runs, with a
+version after the colon:
 
 ```yaml
 services:
-  php: {}
-  legacy:
-    type: php
-    version: "8.1"
+  db: mariadb:11.8
+  cache: valkey        # the default version
 ```
 
-Services reach each other by name: from PHP, a service called `mariadb` is at
-the host `mariadb`.
+To set options, write the service as a mapping with a `type`:
+
+```yaml
+services:
+  db:
+    type: mariadb:11.8
+    database: shop
+```
+
+Services reach each other by name: from your app, the service above is at the
+host `db`. The name `app` belongs to your app.
+
+A service can also be an extra PHP container next to your app, served at
+its own address:
+
+```yaml
+services:
+  legacy: php:8.1      # https://<project>-legacy.flght.dev
+```
 
 See the [service reference](#service-reference) for every service and its options.
 
 ### Workers
 
-Workers are background processes that belong to a service, such as a queue
-worker for your app. Each runs in a container of its own, on the service's
-image, with the same files, settings and network, so it always matches the
-service:
+Workers are background processes of your app, such as a queue worker. Each
+runs in a container of its own, on the app's image, with the same
+files and settings, so it always matches your app:
 
 ```yaml
-services:
-  php:
-    workers:
-      queue: php artisan queue:work
-      scheduler: php artisan schedule:work
+app:
+  type: php:8.4
+  workers:
+    queue: php artisan queue:work
+    scheduler: php artisan schedule:work
 ```
 
 A worker goes by its own name, such as `queue`, so each name can be used once
@@ -235,25 +276,24 @@ restarts when it stops, and works with `flight logs queue` and
 `flight exec --service=queue`. Give it a command that keeps running:
 `schedule:work`, not `schedule:run`.
 
-Workers are available on services that run your code, such as [PHP](#php).
-
 ### Hostnames
 
-Flight gives each web service an address under `flght.dev`:
+Flight gives your app and every other web service an address under
+`flght.dev`:
 
-- The first web service gets `https://<project>.flght.dev`.
+- Your app gets `https://<project>.flght.dev`.
 - Any other web service gets `https://<project>-<service>.flght.dev`.
 
-For a project called `shop` with the services `php` and `legacy`, that is
+For a project called `shop` with an extra PHP service `legacy`, that is
 `shop.flght.dev` and `shop-legacy.flght.dev`.
 
 To answer on more addresses, for example for a multisite or an admin panel,
 add `hostnames`:
 
 ```yaml
-services:
-  php:
-    hostnames: [admin, api]   # also admin.flght.dev and api.flght.dev
+app:
+  type: php:8.4
+  hostnames: [admin, api]   # also admin.flght.dev and api.flght.dev
 ```
 
 Each hostname is one subdomain, such as `admin` or `my-shop`, because the
@@ -269,7 +309,6 @@ right after the project has started. Steps from a recipe run first, then yours.
 ```yaml
 provision:
   - name: Install dependencies
-    service: php
     run: composer install
     unless: test -d vendor
 ```
@@ -277,7 +316,7 @@ provision:
 | Key       | What it is                                                     |
 | --------- | -------------------------------------------------------------- |
 | `name`    | A short description, shown while the step runs                 |
-| `service` | The service to run the command in                              |
+| `service` | Optional. The service to run the command in; defaults to your app |
 | `run`     | The shell command to run                                       |
 | `unless`  | Optional. A check command; when it succeeds, the step is skipped |
 | `dir`     | Optional. The folder to run in, see below                      |
@@ -288,13 +327,12 @@ an `unless` check to skip a step once its work is done, or use a command that
 is harmless to run again. When a step fails, `flight up` stops and shows what
 went wrong.
 
-A step runs in the service's working folder, which for PHP is the app. Use
+A step runs in the service's working folder, which for `app` is your app. Use
 `dir` to run it somewhere else:
 
 ```yaml
 provision:
   - name: Install tool dependencies
-    service: php
     dir: tools
     run: composer install
 ```
@@ -308,7 +346,6 @@ values somewhere private:
 ```yaml
 provision:
   - name: Install dependencies
-    service: php
     env: [COMPOSER_AUTH]   # Composer reads this for private packages
     run: composer install
 ```
@@ -350,7 +387,7 @@ folder:
 ```yaml
 # .flight/compose.override.yaml
 services:
-  php:
+  app:
     volumes:
       - ./packages/my-package:/var/www/html/vendor/acme/my-package
 ```
@@ -366,14 +403,14 @@ added to their ignore list.
 recipe: laravel
 
 services:
-  mariadb: {}
+  db: mariadb
 ```
 
 Point Laravel's `.env` at the database:
 
 ```dotenv
 DB_CONNECTION=mariadb
-DB_HOST=mariadb
+DB_HOST=db
 DB_DATABASE=flight
 DB_USERNAME=flight
 DB_PASSWORD=flight
@@ -386,8 +423,8 @@ flight exec -- php artisan migrate
 ```
 
 For queued jobs and scheduled tasks, turn on the recipe's queue worker and
-scheduler. They run as [workers](#workers) of the `php` service, on the same
-image as your app, start and stop with it, and pick up code changes by
+scheduler. They run as [workers](#workers) of your app, on the same image
+as your app, start and stop with it, and pick up code changes by
 themselves. See their output with `flight logs -f queue` or
 `flight logs -f scheduler`.
 
@@ -432,8 +469,8 @@ Later runs skip these steps, so your site is left as it is.
 | `admin_password` | `admin`          | Administrator password  |
 | `admin_email`    | `admin@flght.dev`| Administrator email     |
 
-WP-CLI is installed in the PHP container, together with the MariaDB client for
-its database commands:
+WP-CLI is installed in your app's container, together with the MariaDB client for its
+database commands:
 
 ```bash
 flight exec -- wp plugin list
@@ -444,52 +481,51 @@ flight exec -- wp db export backup.sql
 
 When your repository is a theme or a plugin, WordPress itself should stay out
 of it. Tell Flight where your project belongs inside WordPress with
-`project_path`. Flight then keeps WordPress in `.flight/php/data` and mounts your
+`project_path`. Flight then keeps WordPress in `.flight/app/data` and mounts your
 repository into it:
 
 ```yaml
-recipe: wordpress
+app:
+  project_path: wp-content/themes/my-theme   # or wp-content/plugins/my-plugin
 
-services:
-  php:
-    project_path: wp-content/themes/my-theme   # or wp-content/plugins/my-plugin
+recipe: wordpress
 
 provision:
   - name: Activate theme
-    service: php
     run: wp theme activate my-theme
     unless: wp theme is-active my-theme
 ```
 
 Run `flight up`, and your theme is installed and active in a fresh WordPress
-site. You can browse the WordPress files in `.flight/php/data`.
+site. You can browse the WordPress files in `.flight/app/data`.
 
 ## Service reference
 
 ### PHP
 
 Runs PHP with a web server, based on
-[serversideup/php](https://serversideup.net/open-source/docker-php/). Your
-project is available in the container at `/var/www/html`.
+[serversideup/php](https://serversideup.net/open-source/docker-php/), usually
+as your [app](#app). Your project is available in the container at
+`/var/www/html`.
 
 ```yaml
-services:
-  php:
-    version: "8.3"
-    extensions: [intl]
+app:
+  type: php:8.3
+  extensions: [intl]
 ```
 
 | Option         | Default     | What it is                                         |
 | -------------- | ----------- | -------------------------------------------------- |
-| `version`      | `8.4`       | `8.1`, `8.2`, `8.3`, `8.4` or `8.5`                |
+| `type`         | `php`       | With a version after the colon: `php:8.1` to `php:8.5`. The default is `8.4`. |
 | `server`       | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`          |
 | `webroot`      | `public`    | The folder the web server serves; `.` for the root |
 | `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]`       |
 | `packages`     | none        | Extra Debian packages, such as `[git]`             |
 | `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`, with `less` for its help pages |
+| `node`         | none        | Installs [Node.js](https://nodejs.org) and npm of this version, such as `"22"`, next to PHP. Quote it, so `"20.10"` isn't read as `20.1`. |
 | `workers`      | none        | Background processes on the same image, see [Workers](#workers) |
 | `access_log`   | `false`     | Log every request. Off by default, so the logs show what matters; errors are always logged. |
-| `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/php/data`. |
+| `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/app/data`. |
 | `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
 
 The container serves HTTPS itself, behind Flight's proxy, so apps such as
@@ -502,12 +538,17 @@ in your project belong to you.
 ### MariaDB
 
 Runs a [MariaDB](https://mariadb.org) database. Other services connect to it
-at the host `mariadb`. Its data is kept in a Docker volume, so it survives
-`flight down`.
+at its name, such as `db`, port `3306`. Its data is kept in a Docker volume, so
+it survives `flight down`.
+
+```yaml
+services:
+  db: mariadb:11.8
+```
 
 | Option     | Default  | What it is                               |
 | ---------- | -------- | ---------------------------------------- |
-| `version`  | `11.8`   | `10.6`, `10.11`, `11.4` or `11.8`        |
+| `type`     | `mariadb` | With a version after the colon: `10.6`, `10.11`, `11.4` or `11.8`. The default is `11.8`. |
 | `database` | `flight` | The database created on the first start  |
 | `user`     | `flight` | A user with access to that database      |
 | `password` | `flight` | The password for that user and for `root` |
@@ -518,20 +559,20 @@ over with an empty database, run `flight destroy` and then `flight up`.
 ### Valkey
 
 Runs [Valkey](https://valkey.io), a Redis-compatible store for caches, queues
-and sessions. Other services connect to it at the host `valkey`, port `6379`.
-Its data is kept in a Docker volume, so it survives `flight down`.
+and sessions. Other services connect to it at its name, such as `cache`, port
+`6379`. Its data is kept in a Docker volume, so it survives `flight down`.
 
 ```yaml
 services:
-  valkey: {}
+  cache: valkey:9.1
 ```
 
 | Option    | Default | What it is                              |
 | --------- | ------- | --------------------------------------- |
-| `version` | `9.1`   | `7.2`, `8.0`, `8.1`, `9.0` or `9.1`     |
+| `type`    | `valkey` | With a version after the colon: `7.2`, `8.0`, `8.1`, `9.0` or `9.1`. The default is `9.1`. |
 
 Apps that talk to Redis work unchanged. In Laravel, for example, set
-`REDIS_HOST=valkey`.
+`REDIS_HOST=cache`.
 
 ### Traefik
 
@@ -544,7 +585,6 @@ in the [global configuration](#global-configuration). Its dashboard is at
 | `http_port`     | `80`                   | The port on your machine for HTTP  |
 | `https_port`    | `443`                  | The port on your machine for HTTPS |
 | `docker_socket` | `/var/run/docker.sock` | The Docker socket Traefik watches  |
-| `hostnames`     | none                   | Extra addresses for the dashboard  |
 
 ## Global configuration
 
@@ -648,7 +688,7 @@ services:
 
 **Your settings are rejected.** Flight checks `flight.yaml` and `config.yaml`
 before starting anything. The error names the exact setting, such as
-`services.php.version`, and what it expects.
+`app.type`, and what it expects.
 
 **You want to try something without touching your setup.** Point Flight at
 another configuration folder: `FLIGHT_CONFIG_DIR=/tmp/flight-test flight stack:up`.

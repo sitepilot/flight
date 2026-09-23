@@ -7,6 +7,7 @@ namespace App\Provisioning;
 use App\Exceptions\FlightException;
 use App\Stacks\ProjectStack;
 use App\Support\Compose;
+use App\Support\StackConfig;
 use App\Support\Variables;
 use Closure;
 use Illuminate\Contracts\Container\Container;
@@ -41,6 +42,11 @@ class Provisioner
         $services = array_map(fn ($service): string => $service->name(), $stack->services());
 
         foreach ($steps as $step) {
+            // Steps run in the app unless they name another service.
+            if ($step->service === null && in_array(StackConfig::APP, $services, true)) {
+                $step->service = StackConfig::APP;
+            }
+
             if ($step->command === null || ! in_array($step->service, $services, true)) {
                 throw FlightException::make(
                     "Step \"{$step->name}\" needs a command and one of the project's services.",

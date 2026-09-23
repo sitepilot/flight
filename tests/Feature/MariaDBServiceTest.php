@@ -1,21 +1,19 @@
 <?php
 
 use App\Exceptions\FlightException;
-use App\Stacks\ProjectStack;
-use App\Support\Scaffold;
-use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function () {
     flightDirectory();
 });
 
-function mariadbCompose(?array $options = null): array
+function mariadbCompose(array $options = []): array
 {
-    flightProject(['services' => ['mariadb' => $options]]);
+    $type = isset($options['version']) ? "mariadb:{$options['version']}" : 'mariadb';
+    unset($options['version']);
 
-    app(Scaffold::class)->write(app(ProjectStack::class));
+    flightProject(['services' => ['mariadb' => ['type' => $type, ...$options]]]);
 
-    return Yaml::parseFile(getcwd().'/.flight/compose.yaml');
+    return writeProjectCompose();
 }
 
 it('runs mariadb with its data in a named volume', function () {
@@ -49,7 +47,7 @@ it('takes its version and credentials from its options', function () {
 
 it('rejects an unsupported version', function () {
     expect(fn () => mariadbCompose(['version' => '5.5']))
-        ->toThrow(FlightException::class, 'Invalid "services.mariadb.version"');
+        ->toThrow(FlightException::class, 'Invalid "services.mariadb.type"');
 });
 
 it('takes no workers', function () {

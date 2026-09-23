@@ -11,25 +11,23 @@ function writeCertificate(array $domains, int $days = 30): void
     $config = flightSettings();
     Files::ensureDirectory($config->certsDirectory());
 
-    $key = openssl_pkey_new(['private_key_bits' => 2048]);
-
-    $csr = openssl_csr_new(
-        ['commonName' => $domains[0]],
-        $key,
-        ['req_extensions' => 'v3_req', 'digest_alg' => 'sha256']
-    );
-
+    // A config of its own, so the test doesn't depend on the machine's
+    // openssl.cnf and the sections it happens to have.
     $conf = tempnam(sys_get_temp_dir(), 'flight-openssl-');
-    file_put_contents($conf, "[v3_req]\nsubjectAltName=".implode(',', array_map(
-        fn (string $domain): string => 'DNS:'.$domain,
-        $domains
-    ))."\n");
+    file_put_contents($conf, implode("\n", [
+        '[req]',
+        'distinguished_name = dn',
+        '[dn]',
+        '[v3_req]',
+        'subjectAltName = '.implode(',', array_map(fn (string $domain): string => 'DNS:'.$domain, $domains)),
+        '',
+    ]));
 
-    $certificate = openssl_csr_sign($csr, null, $key, $days, [
-        'config' => $conf,
-        'x509_extensions' => 'v3_req',
-        'digest_alg' => 'sha256',
-    ]);
+    $options = ['config' => $conf, 'digest_alg' => 'sha256'];
+
+    $key = openssl_pkey_new(['private_key_bits' => 2048, ...$options]);
+    $csr = openssl_csr_new(['commonName' => $domains[0]], $key, $options);
+    $certificate = openssl_csr_sign($csr, null, $key, $days, [...$options, 'x509_extensions' => 'v3_req']);
 
     openssl_x509_export($certificate, $pem);
     openssl_pkey_export($key, $keyPem);

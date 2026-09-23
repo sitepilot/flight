@@ -10,7 +10,7 @@ use App\Support\Compose;
 class ExecCommand extends ProjectCommand
 {
     protected $signature = 'exec
-        {--service= : The service to run it in, defaults to the first}
+        {--service= : The service to run it in, defaults to the app}
         {args* : The command to run; put it after -- when it has options}';
 
     protected $description = 'Run a command in one of the project\'s containers';

@@ -6,7 +6,7 @@ namespace App\Services;
 
 /**
  * A Valkey server, compatible with Redis, with its data in a named volume.
- * Reachable from the other services at its service name, e.g. "valkey".
+ * Reachable from the other services at its name, e.g. "cache".
  */
 class Valkey extends Service
 {
@@ -24,18 +24,6 @@ class Valkey extends Service
         return [
             'version' => ['required', 'in:'.implode(',', self::VERSIONS)],
         ];
-    }
-
-    /**
-     * An unquoted `version: 8.0` parses as a float.
-     */
-    protected function normalize(array $options): array
-    {
-        if (is_float($options['version']) || is_int($options['version'])) {
-            $options['version'] = sprintf('%.1f', $options['version']);
-        }
-
-        return $options;
     }
 
     public function description(): string

@@ -72,7 +72,7 @@ it('follows the configured domain and ports', function () {
 
 it('merges any registered service listed in config.yaml and calls its prepare hook', function () {
     config(['flight.services.stub' => StubService::class]);
-    flightConfig(['services' => ['stub' => null]]);
+    flightConfig(['services' => ['stub' => ['type' => 'stub']]]);
 
     $compose = writeCompose();
 
@@ -83,7 +83,7 @@ it('merges any registered service listed in config.yaml and calls its prepare ho
 });
 
 it('rejects a service type that is not registered', function () {
-    flightConfig(['services' => ['mailpit' => null]]);
+    flightConfig(['services' => ['mailpit' => ['type' => 'mailpit']]]);
 
     writeCompose();
 })->throws(FlightException::class, 'Invalid "services.mailpit.type"');

@@ -80,7 +80,7 @@ class GlobalConfig extends StackConfig
         return true;
     }
 
-    public function label(string $service, int $routed): string
+    public function label(string $service): string
     {
         return $service;
     }

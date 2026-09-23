@@ -11,7 +11,7 @@ use App\Support\StackConfig;
 
 /**
  * A preset stack for a kind of project, used with `recipe:` in flight.yaml.
- * The project's own services are merged over the recipe's. Options are set
+ * The project's app and services are merged over the recipe's. Options are set
  * in flight.yaml as `recipe: {<name>: {<option>: <value>}}`.
  */
 abstract class Recipe
@@ -29,6 +29,17 @@ abstract class Recipe
     public function name(): string
     {
         return $this->name;
+    }
+
+    /**
+     * The app, shaped like the app section of flight.yaml, such as
+     * `['type' => 'php', 'webroot' => 'public']`. Null for none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function app(): ?array
+    {
+        return null;
     }
 
     /**

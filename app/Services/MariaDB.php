@@ -6,7 +6,7 @@ namespace App\Services;
 
 /**
  * A MariaDB server with its data in a named volume. Reachable from the
- * other services at its service name, e.g. "mariadb".
+ * other services at its name, e.g. "db".
  */
 class MariaDB extends Service
 {
@@ -38,18 +38,6 @@ class MariaDB extends Service
             'database.regex' => 'Expected letters, digits and underscores, such as "shop".',
             'user.regex' => 'Expected letters, digits and underscores, such as "shop".',
         ];
-    }
-
-    /**
-     * An unquoted `version: 11.4` parses as a float.
-     */
-    protected function normalize(array $options): array
-    {
-        if (is_float($options['version']) || is_int($options['version'])) {
-            $options['version'] = (string) $options['version'];
-        }
-
-        return $options;
     }
 
     public function database(): string

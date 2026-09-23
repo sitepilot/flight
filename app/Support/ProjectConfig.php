@@ -10,7 +10,7 @@ use App\Services\Php;
 use Illuminate\Support\Str;
 
 /**
- * The settings in a project's flight.yaml or flight.yaml.
+ * The settings in a project's flight.yaml or flight.yml.
  */
 class ProjectConfig extends StackConfig
 {
@@ -51,7 +51,7 @@ class ProjectConfig extends StackConfig
             if ($parent === $directory) {
                 throw FlightException::make(
                     'No flight.yaml found in '.getcwd().' or any parent directory.',
-                    'Create a flight.yaml in your project root that lists the services it needs.',
+                    'Create a flight.yaml in your project root that says what runs your app, such as `app: php:8.4`.',
                 );
             }
 
@@ -153,13 +153,13 @@ class ProjectConfig extends StackConfig
     }
 
     /**
-     * The first routed service is served at <project>.<domain>, the others
+     * The app is served at <project>.<domain>, any other routed service
      * at <project>-<service>.<domain>. Both are one level under the domain,
      * which is all the wildcard certificate covers.
      */
-    public function label(string $service, int $routed): string
+    public function label(string $service): string
     {
-        return $routed === 0 ? $this->name() : $this->name().'-'.$service;
+        return $service === self::APP ? $this->name() : $this->name().'-'.$service;
     }
 
     /**
@@ -188,13 +188,16 @@ class ProjectConfig extends StackConfig
     {
         return [
             'name' => ['required', 'string', 'regex:/^[a-z0-9][a-z0-9-]*$/'],
+            // Checked when loaded, and turned into the `app` service.
+            'app' => ['nullable'],
             // Checked when the recipe is built.
             'recipe' => ['nullable'],
-            'services' => ['nullable', 'required_without:recipe', 'array'],
+            'services' => ['nullable', 'required_without_all:recipe,app', 'array'],
             'provision' => ['nullable', 'list'],
             'provision.*' => ['array:name,service,run,unless,dir,env'],
             'provision.*.name' => ['required', 'string'],
-            'provision.*.service' => ['required', 'string'],
+            // Defaults to the app.
+            'provision.*.service' => ['nullable', 'string'],
             'provision.*.run' => ['required', 'string'],
             'provision.*.unless' => ['nullable', 'string'],
             'provision.*.dir' => ['nullable', 'string', 'regex:'.Php::PATH],
@@ -208,9 +211,9 @@ class ProjectConfig extends StackConfig
         return [
             'name.required' => 'Expected name to be set, or the directory name to contain a letter or digit.',
             'name.regex' => 'Expected a lowercase name such as "myapp"; it becomes myapp.<domain>.',
-            'services.required_without' => 'Expected services to list at least one service, such as `php: {}`, or a recipe such as "laravel".',
+            'services.required_without_all' => 'Expected an app such as `app: php:8.4`, services, or a recipe such as "laravel".',
             'provision.list' => 'Expected provision to be a list of steps.',
-            'provision.*.array' => 'Expected a step with name, service, run and optionally unless, dir and env.',
+            'provision.*.array' => 'Expected a step with name, run and optionally service, unless, dir and env.',
             'provision.*.env.list' => 'Expected a list of variable names, such as [COMPOSER_AUTH].',
             'provision.*.env.*.regex' => 'Expected a variable name, such as "COMPOSER_AUTH".',
             'provision.*.dir.regex' => 'Expected a path inside the app, such as "assets".',

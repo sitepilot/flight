@@ -137,8 +137,6 @@ abstract class FlightCommand extends Command
 
             if ($urls === []) {
                 $rows[] = [$service->name(), '<fg=gray>'.OutputFormatter::escape($service->description()).'</>'];
-
-                continue;
             }
 
             foreach ($urls as $i => $url) {

@@ -84,12 +84,16 @@ trait HasOptions
 
     /**
      * Fill in the defaults and validate, naming errors after their YAML
-     * path, e.g. "services.php.version" for the path "services.php".
+     * path, e.g. "services.mariadb.version" for the path "services.mariadb".
+     * $aliases name options as written, e.g. "version" as "type".
      *
      * @param  array<string, mixed>  $options
+     * @param  array<string, string>  $aliases
      */
-    protected function configure(StackConfig $config, string $path, array $options): void
+    protected function configure(StackConfig $config, string $path, array $options, array $aliases = []): void
     {
+        $name = fn (string $key): string => $aliases[explode('.', $key)[0]] ?? $key;
+
         // An empty option falls back to its default.
         $options = $this->normalize([
             ...$this->allDefaults(),
@@ -102,7 +106,7 @@ trait HasOptions
             throw $config->invalid(
                 $this->allDefaults() === []
                     ? 'Expected no options.'
-                    : 'Expected one of: '.implode(', ', array_keys($this->allDefaults())).'.',
+                    : 'Expected one of: '.implode(', ', array_map($name, array_keys($this->allDefaults()))).'.',
                 $path.'.'.array_key_first($unknown),
             );
         }
@@ -113,12 +117,12 @@ trait HasOptions
             // The built-in message does not list the allowed values.
             'in' => 'Expected :attribute to be one of: :values.',
             ...$this->allMessages(),
-        ], attributes: array_combine($keys, array_map(fn (string $key): string => "{$path}.{$key}", $keys)));
+        ], attributes: array_combine($keys, array_map(fn (string $key): string => "{$path}.{$name($key)}", $keys)));
 
         if ($validator->fails()) {
             $key = (string) array_key_first($validator->errors()->messages());
 
-            throw $config->invalid((string) $validator->errors()->first($key), "{$path}.{$key}");
+            throw $config->invalid((string) $validator->errors()->first($key), "{$path}.{$name($key)}");
         }
 
         $this->options = $options;

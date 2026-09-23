@@ -15,7 +15,8 @@ use Illuminate\Support\Str;
  * built, so mistakes are reported before anything is written or started.
  *
  * A service that routes() is served over HTTPS at the label the stack gives
- * it, plus any extra `hostnames` the user lists.
+ * it, plus any `hostnames` option it declares. A service that declares a
+ * `workers` option runs them next to it, on its image.
  */
 abstract class Service
 {
@@ -28,6 +29,16 @@ abstract class Service
     public const string LABEL = '/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/';
 
     /**
+     * Where it is set in the config, e.g. "app" or "services.db".
+     */
+    protected string $path;
+
+    /**
+     * Its type, e.g. "mariadb".
+     */
+    protected string $type;
+
+    /**
      * @param  array<string, mixed>  $options
      */
     public function __construct(
@@ -36,31 +47,36 @@ abstract class Service
         protected string $name,
         array $options = [],
         protected ?string $label = null,
+        ?string $path = null,
     ) {
+        $this->path = $path ?? "services.{$name}";
+        $this->type = (string) ($options['type'] ?? $name);
+
         unset($options['type']);
 
         // Allow `hostnames: shop` as well as a list.
-        if (static::routes() && is_string($options['hostnames'] ?? null)) {
+        if (is_string($options['hostnames'] ?? null)) {
             $options['hostnames'] = [$options['hostnames']];
         }
 
         // Allow `queue: {run: …}` as well as `queue: …`.
-        if (static::supportsWorkers() && is_array($options['workers'] ?? null)) {
+        if (is_array($options['workers'] ?? null)) {
             $options['workers'] = array_map(
                 fn (mixed $worker): mixed => is_array($worker) && array_keys($worker) === ['run'] ? $worker['run'] : $worker,
                 $options['workers'],
             );
         }
 
-        $this->configure($stack->config(), "services.{$name}", $options);
+        // The version comes from the type, e.g. `type: mariadb:11.8`.
+        $this->configure($stack->config(), $this->path, $options, ['version' => 'type']);
 
         if ($this->workers() !== [] && array_is_list($this->workers())) {
-            throw $stack->config()->invalid('Expected workers to map names to commands, such as `queue: php artisan queue:work`.', "services.{$name}.workers");
+            throw $stack->config()->invalid('Expected workers to map names to commands, such as `queue: php artisan queue:work`.', "{$this->path}.workers");
         }
 
         foreach (array_keys($this->workers()) as $worker) {
             if (! preg_match('/^[a-z0-9][a-z0-9_-]*$/', (string) $worker)) {
-                throw $stack->config()->invalid('Expected a lowercase worker name such as "queue".', "services.{$name}.workers.{$worker}");
+                throw $stack->config()->invalid('Expected a lowercase worker name such as "queue".', "{$this->path}.workers.{$worker}");
             }
         }
     }
@@ -83,27 +99,19 @@ abstract class Service
     }
 
     /**
-     * Whether the service takes `workers`: background processes, such as a
-     * queue worker, that run on the service's image with its mounts and
-     * environment, each in a container of its own.
-     */
-    public static function supportsWorkers(): bool
-    {
-        return false;
-    }
-
-    /**
-     * Commands by worker name.
+     * Commands by worker name: background processes, such as a queue
+     * worker, on the service's image with its mounts and environment, each
+     * in a container of its own. Only for a service that declares `workers`.
      *
      * @return array<string, string>
      */
     public function workers(): array
     {
-        return static::supportsWorkers() ? $this->options['workers'] : [];
+        return $this->options['workers'] ?? [];
     }
 
     /**
-     * The names of this service's compose services, e.g. "php", "queue".
+     * The names of this service's compose services, e.g. "app", "queue".
      *
      * @return array<int, string>
      */
@@ -166,7 +174,7 @@ abstract class Service
     }
 
     /**
-     * E.g. "flight-myapp-php".
+     * E.g. "flight-myapp-app".
      */
     protected function workerImage(): string
     {
@@ -191,7 +199,7 @@ abstract class Service
 
         return array_map(
             fn (string $label): string => $label.'.'.$this->global->domain(),
-            array_values(array_unique([$this->label, ...$this->options['hostnames']])),
+            array_values(array_unique([$this->label, ...$this->options['hostnames'] ?? []])),
         );
     }
 
@@ -250,7 +258,7 @@ abstract class Service
 
     /**
      * A path as compose expects it, relative to the compose project
-     * directory, e.g. "./.flight/php/build".
+     * directory, e.g. "./.flight/app/build".
      */
     protected function relativePath(string $path): string
     {
@@ -282,38 +290,12 @@ abstract class Service
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    protected function allDefaults(): array
-    {
-        return [
-            ...$this->defaults(),
-            ...(static::routes() ? ['hostnames' => []] : []),
-            ...(static::supportsWorkers() ? ['workers' => []] : []),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function allRules(): array
-    {
-        return [
-            ...$this->rules(),
-            ...(static::routes() ? ['hostnames' => ['list'], 'hostnames.*' => ['string', 'regex:'.self::LABEL]] : []),
-            ...(static::supportsWorkers() ? ['workers' => ['array'], 'workers.*' => ['string']] : []),
-        ];
-    }
-
-    /**
      * @return array<string, string>
      */
     protected function allMessages(): array
     {
         return [
-            'hostnames.*.regex' => 'Expected a lowercase subdomain such as "admin", which becomes admin.'.$this->global->domain().'.',
-            'workers.array' => 'Expected workers to map names to commands, such as `queue: php artisan queue:work`.',
-            'workers.*.string' => 'Expected a command, such as "php artisan queue:work".',
+            'version.in' => "Expected a {$this->type} version, one of: :values.",
             ...$this->messages(),
         ];
     }

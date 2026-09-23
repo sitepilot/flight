@@ -75,12 +75,13 @@ it('keeps compose away from the application env file', function () {
 });
 
 it('reports an invalid flight.yaml without running compose', function () {
-    file_put_contents($this->project.'/flight.yaml', "services:\n  php:\n    version: '7.0'\n");
+    file_put_contents($this->project.'/flight.yaml', "app:\n  type: php:7.0\n");
 
     $exitCode = $this->withoutMockingConsoleOutput()->artisan('up');
 
     expect($exitCode)->toBe(1)
-        ->and(Artisan::output())->toContain('services.php.version');
+        ->and(Artisan::output())->toContain('app.type')
+        ->toContain('Expected a php version, one of:');
 
     Process::assertNothingRan();
 });
@@ -106,11 +107,11 @@ it('serves a recipe project and names the recipe', function () {
 
 it('runs the provisioning steps after starting the project', function () {
     file_put_contents($this->project.'/flight.yaml', <<<'YAML'
-        services:
-          php: {}
+        app:
+          type: php
         provision:
           - name: Greet
-            service: php
+            service: app
             run: echo hello
             unless: test -f greeted
         YAML);
@@ -121,7 +122,7 @@ it('runs the provisioning steps after starting the project', function () {
 
     // Process::fake succeeds, so the check passes and the step is skipped.
     expect($commands[1])->toEndWith('up -d --wait')
-        ->and($commands[2])->toEndWith('exec -T php sh -c test -f greeted')
+        ->and($commands[2])->toEndWith('exec -T app sh -c test -f greeted')
         ->and($commands)->toHaveCount(3)
         ->and(Artisan::output())->toContain('Greet (skipped)');
 });
@@ -135,15 +136,15 @@ it('destroys the project containers and volumes', function () {
 });
 
 it('removes the data in .flight but keeps the user files', function () {
-    mkdir($this->project.'/.flight/php/data', 0755, true);
-    file_put_contents($this->project.'/.flight/php/data/index.php', '<?php');
+    mkdir($this->project.'/.flight/app/data', 0755, true);
+    file_put_contents($this->project.'/.flight/app/data/index.php', '<?php');
     file_put_contents($this->project.'/.flight/compose.override.yaml', "services: {}\n");
     file_put_contents($this->project.'/.flight/.env', "TOKEN=secret\n");
 
     $this->withoutMockingConsoleOutput()->artisan('destroy --force');
 
     expect(Artisan::output())->toContain('Kept your compose.override.yaml and .env in .flight.')
-        ->and($this->project.'/.flight/php')->not->toBeDirectory()
+        ->and($this->project.'/.flight/app')->not->toBeDirectory()
         ->and($this->project.'/.flight/compose.yaml')->not->toBeFile()
         ->and($this->project.'/.flight/compose.override.yaml')->toBeFile()
         ->and($this->project.'/.flight/.env')->toBeFile()
@@ -159,7 +160,7 @@ it('removes .flight entirely when it holds no user files', function () {
 });
 
 it('asks before destroying', function () {
-    mkdir($this->project.'/.flight/php/data', 0755, true);
+    mkdir($this->project.'/.flight/app/data', 0755, true);
 
     $this->artisan('destroy')
         ->expectsConfirmation("Remove myapp's containers, volumes and data? Its database and files in .flight are lost.", 'no')
@@ -167,7 +168,7 @@ it('asks before destroying', function () {
 
     Process::assertNothingRan();
 
-    expect($this->project.'/.flight/php/data')->toBeDirectory();
+    expect($this->project.'/.flight/app/data')->toBeDirectory();
 });
 
 it('destroys after confirming', function () {
@@ -178,16 +179,16 @@ it('destroys after confirming', function () {
     expect($this->commands[0])->toEndWith('down --volumes --remove-orphans');
 });
 
-it('opens a shell in the first service', function () {
+it('opens a shell in the app', function () {
     $this->artisan('shell')->assertExitCode(0);
 
     expect($this->commands)->toHaveCount(1)
         ->and($this->commands[0])->toContain('-p flight-myapp')
-        ->toMatch('/ exec( -T)? php sh -c if command -v bash/');
+        ->toMatch('/ exec( -T)? app sh -c if command -v bash/');
 });
 
 it('opens a shell in the service asked for', function () {
-    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  mariadb: {}\n");
+    file_put_contents($this->project.'/flight.yaml', "app:\n  type: php\nservices:\n  mariadb:\n    type: mariadb\n");
 
     $this->artisan('shell mariadb')->assertExitCode(0);
 
@@ -199,7 +200,7 @@ it('names the services when the one asked for does not exist', function () {
 
     expect($exitCode)->toBe(1)
         ->and(Artisan::output())->toContain('The project has no "redis" service.')
-        ->toContain('Expected one of: php.');
+        ->toContain('Expected one of: app.');
 
     Process::assertNothingRan();
 });
@@ -207,11 +208,11 @@ it('names the services when the one asked for does not exist', function () {
 it('runs a command with its own options after --', function () {
     $this->artisan('exec -- php artisan migrate --force')->assertExitCode(0);
 
-    expect($this->commands[0])->toMatch('/ exec( -T)? php php artisan migrate --force$/');
+    expect($this->commands[0])->toMatch('/ exec( -T)? app php artisan migrate --force$/');
 });
 
 it('runs a command in another service', function () {
-    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  valkey: {}\n");
+    file_put_contents($this->project.'/flight.yaml', "app:\n  type: php\nservices:\n  valkey:\n    type: valkey\n");
 
     $this->artisan('exec --service=valkey -- valkey-cli ping')->assertExitCode(0);
 
@@ -232,16 +233,16 @@ it('prints only the command output, without the flight heading', function () {
     expect(Artisan::output())->not->toContain('Flight');
 });
 
-it('shows the logs of the first service', function () {
+it('shows the logs of the app', function () {
     $this->artisan('logs')->assertExitCode(0);
 
     expect($this->commands)->toHaveCount(1)
         ->and($this->commands[0])->toContain('-p flight-myapp')
-        ->toEndWith(' logs php');
+        ->toEndWith(' logs app');
 });
 
 it('shows the logs of the service asked for', function () {
-    file_put_contents($this->project.'/flight.yaml', "services:\n  php: {}\n  mariadb: {}\n");
+    file_put_contents($this->project.'/flight.yaml', "app:\n  type: php\nservices:\n  mariadb:\n    type: mariadb\n");
 
     $this->artisan('logs mariadb')->assertExitCode(0);
 
@@ -249,9 +250,9 @@ it('shows the logs of the service asked for', function () {
 });
 
 it('follows and tails the logs when asked', function () {
-    $this->artisan('logs php -f --tail=50')->assertExitCode(0);
+    $this->artisan('logs app -f --tail=50')->assertExitCode(0);
 
-    expect($this->commands[0])->toEndWith(' logs --follow --tail 50 php');
+    expect($this->commands[0])->toEndWith(' logs --follow --tail 50 app');
 });
 
 it('rejects a tail that is not a number of lines', function () {
@@ -271,12 +272,12 @@ it('rejects logs for a service the project does not have', function () {
 });
 
 it('lists the services in the project summary', function () {
-    file_put_contents($this->project.'/flight.yaml', "recipe:\n  laravel:\n    queue: true\nservices:\n  mariadb: {}\n");
+    file_put_contents($this->project.'/flight.yaml', "recipe:\n  laravel:\n    queue: true\nservices:\n  mariadb:\n    type: mariadb\n");
 
     $this->withoutMockingConsoleOutput()->artisan('up');
 
     // A row per service: its address, or else what it is.
-    expect(Artisan::output())->toMatch('/│\s+php\s+https:\/\/myapp\.flght\.dev\s+│/')
+    expect(Artisan::output())->toMatch('/│\s+app\s+https:\/\/myapp\.flght\.dev\s+│/')
         ->toMatch('/│\s+mariadb\s+MariaDB 11\.8 at mariadb:3306\s+│/')
         ->toMatch('/│\s+queue\s+php artisan queue:listen --tries=1 --timeout=0\s+│/');
 });

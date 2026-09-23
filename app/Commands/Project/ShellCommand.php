@@ -9,7 +9,7 @@ use App\Support\Compose;
 
 class ShellCommand extends ProjectCommand
 {
-    protected $signature = 'shell {service? : The service to open a shell in, defaults to the first}';
+    protected $signature = 'shell {service? : The service to open a shell in, defaults to the app}';
 
     protected $description = 'Open a shell in one of the project\'s containers';
 

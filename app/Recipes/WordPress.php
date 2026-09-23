@@ -34,17 +34,23 @@ class WordPress extends Recipe
         ];
     }
 
+    public function app(): array
+    {
+        return [
+            'type' => 'php',
+            'webroot' => '.',
+            'extensions' => ['mysqli', 'gd', 'exif', 'intl'],
+            // For `wp db export`, `wp db import` and the like.
+            'packages' => ['mariadb-client'],
+            'wp_cli' => true,
+        ];
+    }
+
     public function services(): array
     {
         return [
-            'php' => [
-                'webroot' => '.',
-                'extensions' => ['mysqli', 'gd', 'exif', 'intl'],
-                // For `wp db export`, `wp db import` and the like.
-                'packages' => ['mariadb-client'],
-                'wp_cli' => true,
-            ],
             'mariadb' => [
+                'type' => 'mariadb',
                 'database' => 'wordpress',
                 'user' => 'wordpress',
                 'password' => 'wordpress',
@@ -59,12 +65,10 @@ class WordPress extends Recipe
 
         return [
             Step::make('Download WordPress')
-                ->in('php')
                 ->run('wp core download')
                 ->unless('test -f wp-load.php'),
 
             Step::make('Configure WordPress')
-                ->in('php')
                 ->run($this->command('wp config create', [
                     'dbhost' => $database->name(),
                     'dbname' => $database->database(),
@@ -74,7 +78,6 @@ class WordPress extends Recipe
                 ->unless('test -f wp-config.php'),
 
             Step::make('Install WordPress')
-                ->in('php')
                 ->run($this->command('wp core install --skip-email', [
                     'url' => $context->url(),
                     'title' => $this->option('title') ?? $context->project(),

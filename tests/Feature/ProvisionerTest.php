@@ -58,8 +58,8 @@ it('runs a step in its service when its check fails', function () {
     flightProject(['recipe' => 'stub']);
 
     expect(provisionAll())->toBe(['Greet', 'Always'])
-        ->and($this->commands[0])->toEndWith('exec -T php sh -c test -f greeted')
-        ->and($this->commands[1])->toEndWith('exec -T php sh -c echo hello https://myapp.flght.dev');
+        ->and($this->commands[0])->toEndWith('exec -T app sh -c test -f greeted')
+        ->and($this->commands[1])->toEndWith('exec -T app sh -c echo hello https://myapp.flght.dev');
 });
 
 it('skips a step whose check passes', function () {
@@ -77,7 +77,7 @@ it('always runs a step without a check', function () {
 
     $commands = $this->commands->getArrayCopy();
 
-    expect(end($commands))->toEndWith('exec -T php sh -c true');
+    expect(end($commands))->toEndWith('exec -T app sh -c true');
 });
 
 it('passes recipe options to its steps', function () {
@@ -91,7 +91,7 @@ it('passes recipe options to its steps', function () {
 it('runs the recipe steps before those in flight.yaml', function () {
     flightProject([
         'recipe' => 'stub',
-        'provision' => [['name' => 'Mine', 'service' => 'php', 'run' => 'echo mine']],
+        'provision' => [['name' => 'Mine', 'service' => 'app', 'run' => 'echo mine']],
     ]);
 
     $steps = provisioner()->steps(app(ProjectStack::class));
@@ -101,8 +101,8 @@ it('runs the recipe steps before those in flight.yaml', function () {
 });
 
 it('reads the check of a step in flight.yaml', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Install', 'service' => 'php', 'run' => 'composer install', 'unless' => 'test -d vendor'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Install', 'service' => 'app', 'run' => 'composer install', 'unless' => 'test -d vendor'],
     ]]);
 
     [$step] = provisioner()->steps(app(ProjectStack::class));
@@ -112,8 +112,8 @@ it('reads the check of a step in flight.yaml', function () {
 });
 
 it('stops at a failing step, naming it', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Break', 'service' => 'php', 'run' => 'exit 3'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Break', 'service' => 'app', 'run' => 'exit 3'],
     ]]);
 
     Process::fake(fn () => Process::result('', 'boom', 3));
@@ -122,7 +122,7 @@ it('stops at a failing step, naming it', function () {
 })->throws(FlightException::class, 'Step "Break" failed.');
 
 it('rejects a step for a service the project does not have', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
         ['name' => 'Migrate', 'service' => 'db', 'run' => 'true'],
     ]]);
 
@@ -136,55 +136,55 @@ it('rejects an invalid recipe option, naming its path', function () {
 })->throws(FlightException::class, 'Invalid "recipe.stub.greeting"');
 
 it('runs a step in a directory relative to the app', function (string $dir, string $prefix) {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Build', 'service' => 'php', 'run' => 'npm run build', 'unless' => 'test -f greeted', 'dir' => $dir],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Build', 'service' => 'app', 'run' => 'npm run build', 'unless' => 'test -f greeted', 'dir' => $dir],
     ]]);
 
     provisionAll();
 
-    expect($this->commands[0])->toEndWith("exec -T php sh -c {$prefix} && test -f greeted")
-        ->and($this->commands[1])->toEndWith("exec -T php sh -c {$prefix} && npm run build");
+    expect($this->commands[0])->toEndWith("exec -T app sh -c {$prefix} && test -f greeted")
+        ->and($this->commands[1])->toEndWith("exec -T app sh -c {$prefix} && npm run build");
 })->with([
     'a subdirectory' => ['assets', "cd 'assets'"],
     'the app itself' => ['.', "cd '.'"],
 ]);
 
 it('runs a step in the container working directory without a dir', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Build', 'service' => 'php', 'run' => 'npm run build'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Build', 'service' => 'app', 'run' => 'npm run build'],
     ]]);
 
     provisionAll();
 
-    expect($this->commands[0])->toEndWith('exec -T php sh -c npm run build');
+    expect($this->commands[0])->toEndWith('exec -T app sh -c npm run build');
 });
 
 it('rejects a step directory outside the app', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Build', 'service' => 'php', 'run' => 'true', 'dir' => '../etc'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Build', 'service' => 'app', 'run' => 'true', 'dir' => '../etc'],
     ]]);
 
     app(ProjectStack::class)->project()->load();
 })->throws(FlightException::class, 'Invalid "provision.0.dir"');
 
 it('passes the variables a step needs by name only', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'composer install', 'unless' => 'test -f greeted'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'app', 'env' => ['COMPOSER_AUTH'], 'run' => 'composer install', 'unless' => 'test -f greeted'],
     ]]);
     putenv('COMPOSER_AUTH=secret-key');
 
     provisionAll();
 
     foreach ([0, 1] as $i) {
-        expect($this->commands[$i])->toContain('exec -T -e COMPOSER_AUTH php sh -c')
+        expect($this->commands[$i])->toContain('exec -T -e COMPOSER_AUTH app sh -c')
             ->not->toContain('secret-key')
             ->and($this->environments[$i]['COMPOSER_AUTH'])->toBe('secret-key');
     }
 });
 
 it('reads a step variable from the project .flight/.env', function () {
-    $root = flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
+    $root = flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'app', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
     ]]);
     mkdir($root.'/.flight');
     file_put_contents($root.'/.flight/.env', "COMPOSER_AUTH=from-file\n");
@@ -195,8 +195,8 @@ it('reads a step variable from the project .flight/.env', function () {
 });
 
 it('stops before anything runs when a step variable is not set', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'app', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
     ]]);
 
     expect(fn () => provisioner()->steps(app(ProjectStack::class)))->toThrow(function (FlightException $e) {
@@ -208,8 +208,8 @@ it('stops before anything runs when a step variable is not set', function () {
 });
 
 it('rejects an invalid variable name', function () {
-    flightProject(['services' => ['php' => null], 'provision' => [
-        ['name' => 'Install dependencies', 'service' => 'php', 'env' => ['COMPOSER-AUTH'], 'run' => 'true'],
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Install dependencies', 'service' => 'app', 'env' => ['COMPOSER-AUTH'], 'run' => 'true'],
     ]]);
 
     app(ProjectStack::class)->project()->load();
@@ -218,3 +218,21 @@ it('rejects an invalid variable name', function () {
 it('lets a recipe step declare its variables', function () {
     expect(Step::make('Install dependencies')->env('COMPOSER_AUTH', 'OTHER')->env)->toBe(['COMPOSER_AUTH', 'OTHER']);
 });
+
+it('runs a step in the app when it names no service', function () {
+    flightProject(['app' => ['type' => 'php'], 'provision' => [
+        ['name' => 'Migrate', 'run' => 'php artisan migrate'],
+    ]]);
+
+    provisionAll();
+
+    expect($this->commands[0])->toEndWith('exec -T app sh -c php artisan migrate');
+});
+
+it('needs a service for a step when there is no app', function () {
+    flightProject(['services' => ['mariadb' => ['type' => 'mariadb']], 'provision' => [
+        ['name' => 'Migrate', 'run' => 'true'],
+    ]]);
+
+    provisioner()->steps(app(ProjectStack::class));
+})->throws(FlightException::class, 'Step "Migrate" needs a command and one of the project\'s services.');

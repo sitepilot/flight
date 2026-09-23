@@ -51,11 +51,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | App Types
+    |--------------------------------------------------------------------------
+    |
+    | The service types a project's `app` can have, such as `php:8.4`.
+    |
+    */
+
+    'app_types' => ['php'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Services
     |--------------------------------------------------------------------------
     |
     | The service types config.yaml and flight.yaml can use, keyed by type
-    | name. A service's type defaults to its name.
+    | name, such as `db: mariadb:11.8`.
     |
     */
 

@@ -23,7 +23,12 @@ class Scaffold
             $service->prepare();
 
             foreach ($service->composeServices() as $name => $definition) {
-                $definition['networks'] ??= $stack->serviceNetworks();
+                // Only what the proxy serves joins its network. Databases and
+                // workers stay in the stack's own network.
+                $definition['networks'] ??= $name === $service->name() && $service::routes()
+                    ? $stack->serviceNetworks()
+                    : ['default'];
+
                 $services[$name] = $definition;
             }
 

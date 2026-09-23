@@ -12,7 +12,7 @@ class Proxy extends Recipe
     public function services(): array
     {
         return [
-            'traefik' => [],
+            'traefik' => ['type' => 'traefik'],
         ];
     }
 }

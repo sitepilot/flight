@@ -27,7 +27,7 @@ it('finds flight.yml as well', function () {
     rename($root.'/flight.yaml', $root.'/flight.yml');
 
     expect(project()->file())->toBe($root.'/flight.yml')
-        ->and(project()->services())->toHaveKey('php');
+        ->and(project()->services())->toHaveKey('app');
 });
 
 it('prefers flight.yaml when both exist', function () {
@@ -59,22 +59,73 @@ it('names the project after its directory by default', function () {
 });
 
 it('takes the name from flight.yaml when set', function () {
-    flightProject(['name' => 'shop', 'services' => ['php' => null]]);
+    flightProject(['name' => 'shop', 'app' => ['type' => 'php']]);
 
     expect(project()->name())->toBe('shop');
 });
 
-it('fills in each service type from its name', function () {
-    flightProject(['services' => ['php' => null, 'legacy' => ['type' => 'php', 'version' => '8.1']]]);
+it('splits the version from the type', function () {
+    flightProject(['services' => ['db' => ['type' => 'mariadb:11.4', 'database' => 'shop'], 'cache' => ['type' => 'valkey']]]);
 
     expect(project()->services())->toBe([
-        'php' => ['type' => 'php'],
-        'legacy' => ['type' => 'php', 'version' => '8.1'],
+        'db' => ['type' => 'mariadb', 'version' => '11.4', 'database' => 'shop'],
+        'cache' => ['type' => 'valkey'],
     ]);
 });
 
+it('reads a string as the type', function () {
+    flightProject("app: php:8.3\nservices:\n  db: mariadb:11.4\n  cache: valkey\n");
+
+    expect(project()->services())->toBe([
+        'app' => ['type' => 'php', 'version' => '8.3'],
+        'db' => ['type' => 'mariadb', 'version' => '11.4'],
+        'cache' => ['type' => 'valkey'],
+    ]);
+});
+
+it('keeps the recipe options when its app is written as a string', function () {
+    flightProject("recipe: laravel\napp: php:8.3\n");
+
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public']);
+});
+
+it('rejects another type than the recipe sets', function (string $yaml, string $key) {
+    flightProject($yaml);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, "Invalid \"{$key}\"");
+})->with([
+    'the app' => ["recipe: laravel\napp: mariadb\n", 'app.type'],
+    'a service' => ["recipe: wordpress\nservices:\n  mariadb:\n    type: valkey\n", 'services.mariadb.type'],
+]);
+
+it('names the recipe and its type when the type differs', function () {
+    flightProject("recipe: wordpress\nservices:\n  mariadb: valkey:8.0\n");
+
+    try {
+        project()->load();
+    } catch (FlightException $e) {
+        expect($e->hint())->toBe('Expected mariadb, as set by the wordpress recipe; you can change its version, such as `mariadb:<version>`.');
+
+        return;
+    }
+
+    throw new RuntimeException('Expected flight.yaml to be rejected.');
+});
+
+it('rejects a string that is not a type', function () {
+    flightProject("services:\n  db: postgres:16\n");
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "services.db.type"');
+});
+
+it('takes the type from the recipe when flight.yaml leaves it out', function () {
+    flightProject(['recipe' => 'wordpress', 'services' => ['mariadb' => ['database' => 'shop']]]);
+
+    expect(project()->services()['mariadb'])->toMatchArray(['type' => 'mariadb', 'database' => 'shop']);
+});
+
 it('rejects an invalid name', function () {
-    flightProject(['name' => 'My App', 'services' => ['php' => null]]);
+    flightProject(['name' => 'My App', 'app' => ['type' => 'php']]);
 
     expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "name"');
 });
@@ -108,20 +159,32 @@ it('takes the services from a recipe', function () {
 
     expect(project()->recipe()->name())->toBe('laravel')
         ->and(project()->services())->toBe([
-            'php' => ['type' => 'php', 'webroot' => 'public'],
+            'app' => ['type' => 'php', 'webroot' => 'public'],
         ]);
 });
 
 it('overrides a recipe option by option', function () {
-    flightProject(['recipe' => 'laravel', 'services' => ['php' => ['version' => '8.3']]]);
+    flightProject(['recipe' => 'laravel', 'app' => ['type' => 'php:8.3', 'hostnames' => ['admin']]]);
 
-    expect(project()->services()['php'])->toBe(['type' => 'php', 'webroot' => 'public', 'version' => '8.3']);
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public', 'hostnames' => ['admin']]);
 });
 
-it('keeps the recipe options for a bare service', function () {
-    flightProject("recipe: laravel\nservices:\n  php:\n");
+it('keeps the recipe app for an app without options', function () {
+    flightProject(['recipe' => 'laravel', 'app' => ['type' => 'php:8.3']]);
 
-    expect(project()->services()['php'])->toBe(['type' => 'php', 'webroot' => 'public']);
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public']);
+});
+
+it('puts the app first, before the services', function () {
+    flightProject(['services' => ['mariadb' => ['type' => 'mariadb']], 'app' => ['type' => 'php']]);
+
+    expect(array_keys(project()->services()))->toBe(['app', 'mariadb']);
+});
+
+it('needs no app', function () {
+    flightProject(['services' => ['mariadb' => ['type' => 'mariadb']]]);
+
+    expect(project()->services())->not->toHaveKey('app');
 });
 
 it('replaces lists instead of merging them', function () {
@@ -133,10 +196,10 @@ it('replaces lists instead of merging them', function () {
     expect($merged)->toBe(['php' => ['hostnames' => ['admin']]]);
 });
 
-it('adds services after the recipe services', function () {
-    flightProject(['recipe' => 'laravel', 'services' => ['worker' => ['type' => 'php']]]);
+it('adds services next to the recipe app', function () {
+    flightProject(['recipe' => 'laravel', 'services' => ['legacy' => ['type' => 'php']]]);
 
-    expect(array_keys(project()->services()))->toBe(['php', 'worker']);
+    expect(array_keys(project()->services()))->toBe(['app', 'legacy']);
 });
 
 it('rejects an unknown recipe', function () {
@@ -187,7 +250,7 @@ it('rejects an option the recipe does not have', function () {
 });
 
 it('rejects an invalid provision step', function (mixed $provision, string $key) {
-    flightProject(['services' => ['php' => null], 'provision' => $provision]);
+    flightProject(['app' => ['type' => 'php'], 'provision' => $provision]);
 
     expect(fn () => project()->load())->toThrow(FlightException::class, "Invalid \"{$key}\"");
 })->with([
@@ -197,23 +260,23 @@ it('rejects an invalid provision step', function (mixed $provision, string $key)
 ]);
 
 it('adds a queue worker with the laravel recipe queue option', function () {
-    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'services' => ['php' => ['version' => '8.3']]]);
+    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'app' => ['type' => 'php:8.3']]);
 
-    expect(project()->services()['php'])->toBe([
+    expect(project()->services()['app'])->toBe([
         'type' => 'php',
+        'version' => '8.3',
         'webroot' => 'public',
         'workers' => ['queue' => 'php artisan queue:listen --tries=1 --timeout=0'],
-        'version' => '8.3',
     ]);
 });
 
 it('lets flight.yaml change and add workers next to the recipe ones', function () {
-    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'services' => ['php' => ['workers' => [
+    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'app' => ['type' => 'php', 'workers' => [
         'queue' => 'php artisan queue:work',
         'horizon' => 'php artisan horizon',
-    ]]]]);
+    ]]]);
 
-    expect(project()->services()['php']['workers'])->toBe([
+    expect(project()->services()['app']['workers'])->toBe([
         'queue' => 'php artisan queue:work',
         'horizon' => 'php artisan horizon',
     ]);
@@ -222,11 +285,11 @@ it('lets flight.yaml change and add workers next to the recipe ones', function (
 it('adds no workers by default', function () {
     flightProject(['recipe' => 'laravel']);
 
-    expect(project()->services()['php'])->not->toHaveKey('workers');
+    expect(project()->services()['app'])->not->toHaveKey('workers');
 });
 
 it('adds a scheduler with the laravel recipe scheduler option', function () {
     flightProject(['recipe' => ['laravel' => ['scheduler' => true]]]);
 
-    expect(project()->services()['php']['workers'])->toBe(['scheduler' => 'php artisan schedule:work']);
+    expect(project()->services()['app']['workers'])->toBe(['scheduler' => 'php artisan schedule:work']);
 });

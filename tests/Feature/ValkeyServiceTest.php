@@ -1,21 +1,19 @@
 <?php
 
 use App\Exceptions\FlightException;
-use App\Stacks\ProjectStack;
-use App\Support\Scaffold;
-use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function () {
     flightDirectory();
 });
 
-function valkeyCompose(?array $options = null): array
+function valkeyCompose(array $options = []): array
 {
-    flightProject(['services' => ['valkey' => $options]]);
+    $type = isset($options['version']) ? "valkey:{$options['version']}" : 'valkey';
+    unset($options['version']);
 
-    app(Scaffold::class)->write(app(ProjectStack::class));
+    flightProject(['services' => ['valkey' => ['type' => $type, ...$options]]]);
 
-    return Yaml::parseFile(getcwd().'/.flight/compose.yaml');
+    return writeProjectCompose();
 }
 
 it('runs valkey with its data in a named volume', function () {
@@ -33,11 +31,11 @@ it('has a healthcheck so flight up waits until it answers', function () {
         ->toBe(['CMD-SHELL', 'valkey-cli ping | grep -q PONG']);
 });
 
-it('accepts an unquoted version', function () {
-    expect(valkeyCompose(['version' => 8.0])['services']['valkey']['image'])->toBe('valkey/valkey:8.0');
+it('reads the version from the type', function () {
+    expect(valkeyCompose(['version' => '8.0'])['services']['valkey']['image'])->toBe('valkey/valkey:8.0');
 });
 
 it('rejects an unsupported version', function () {
     expect(fn () => valkeyCompose(['version' => '6.0']))
-        ->toThrow(FlightException::class, 'Invalid "services.valkey.version"');
+        ->toThrow(FlightException::class, 'Invalid "services.valkey.type"');
 });

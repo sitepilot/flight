@@ -29,10 +29,10 @@ it('runs php with wp-cli and mariadb', function () {
 
     $services = app(ProjectStack::class)->project()->services();
 
-    expect($services['php'])->toMatchArray(['webroot' => '.', 'wp_cli' => true])
-        ->and($services['php']['extensions'])->toContain('mysqli')
+    expect($services['app'])->toMatchArray(['webroot' => '.', 'wp_cli' => true])
+        ->and($services['app']['extensions'])->toContain('mysqli')
         // For wp db export and import.
-        ->and($services['php']['packages'])->toBe(['mariadb-client'])
+        ->and($services['app']['packages'])->toBe(['mariadb-client'])
         ->and($services['mariadb'])->toMatchArray(['type' => 'mariadb', 'database' => 'wordpress']);
 });
 

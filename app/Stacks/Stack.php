@@ -87,28 +87,20 @@ abstract class Stack
         }
 
         $types = (array) config('flight.services');
-        $routed = 0;
 
         $services = [];
 
+        // The config has checked the types.
         foreach ($this->config->services() as $name => $options) {
-            $type = $options['type'];
-
-            if (! is_string($type) || ! isset($types[$type])) {
-                throw $this->config->invalid(
-                    'Expected one of: '.implode(', ', array_keys($types)).'.',
-                    "services.{$name}.type",
-                );
-            }
-
             /** @var class-string<Service> $class */
-            $class = $types[$type];
+            $class = $types[$options['type']];
 
             $services[] = $this->container->make($class, [
                 'stack' => $this,
                 'name' => (string) $name,
                 'options' => $options,
-                'label' => $class::routes() ? $this->config->label((string) $name, $routed++) : null,
+                'label' => $class::routes() ? $this->config->label((string) $name) : null,
+                'path' => $name === StackConfig::APP ? 'app' : "services.{$name}",
             ]);
         }
 
@@ -152,7 +144,8 @@ abstract class Stack
     }
 
     /**
-     * The networks every service joins.
+     * The networks a routed service joins; the others only join the
+     * stack's own network.
      *
      * @return array<int, string>
      */
@@ -189,12 +182,12 @@ abstract class Stack
         $claimed = [];
 
         foreach ($services as $service) {
-            $claimed[$service->name()] = "services.{$service->name()}";
+            $claimed[$service->name()] = $this->path($service);
         }
 
         foreach ($services as $service) {
             foreach (array_keys($service->workers()) as $worker) {
-                $path = "services.{$service->name()}.workers.{$worker}";
+                $path = "{$this->path($service)}.workers.{$worker}";
 
                 if (isset($claimed[$worker])) {
                     throw $this->config->invalid("Expected \"{$worker}\" to be used once, but {$claimed[$worker]} already uses it.", $path);
@@ -203,6 +196,14 @@ abstract class Stack
                 $claimed[$worker] = $path;
             }
         }
+    }
+
+    /**
+     * Where a service is set in the config: "app" or "services.<name>".
+     */
+    protected function path(Service $service): string
+    {
+        return $service->name() === StackConfig::APP ? 'app' : "services.{$service->name()}";
     }
 
     /**
@@ -218,12 +219,12 @@ abstract class Stack
             foreach ($service->hostnames() as $hostname) {
                 if (isset($claimed[$hostname])) {
                     throw $this->config->invalid(
-                        "Expected {$hostname} to be served once, but services.{$claimed[$hostname]} already serves it.",
-                        "services.{$service->name()}.hostnames",
+                        "Expected {$hostname} to be served once, but {$claimed[$hostname]} already serves it.",
+                        "{$this->path($service)}.hostnames",
                     );
                 }
 
-                $claimed[$hostname] = $service->name();
+                $claimed[$hostname] = $this->path($service);
             }
         }
     }

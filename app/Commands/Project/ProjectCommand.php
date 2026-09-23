@@ -19,7 +19,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 abstract class ProjectCommand extends FlightCommand
 {
     /**
-     * The named service, or the project's first one.
+     * The named service, or else the first one: the app, when the project
+     * has one.
      */
     protected function service(ProjectStack $stack, ?string $name): string
     {
