@@ -15,8 +15,11 @@ abstract class ProjectCommand extends FlightCommand
 {
     protected function projectSummary(string $title, ProjectStack $stack): void
     {
+        $project = $stack->project();
+
         $this->summary($title, $stack, [
-            ['Project', $stack->project()->name()],
+            ['Project', $project->name()],
+            ...($project->recipe() === null ? [] : [['Recipe', $project->recipe()]]),
         ], [
             ['Directory', $this->displayPath($stack->directory())],
         ]);

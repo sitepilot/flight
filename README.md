@@ -143,6 +143,7 @@ the project name: `name` from `flight.yml`, or the directory name when unset.
 | Key        | Default             | Description                                  |
 | ---------- | ------------------- | -------------------------------------------- |
 | `name`     | the directory name  | Project name, and the subdomain it is served on |
+| `recipe`   | none                | A preset stack, see [Recipes](#recipes)      |
 | `services` |                     | The services to run, keyed by service name   |
 
 A service's type is its service name, unless it sets `type`, so a project can run two
@@ -155,6 +156,36 @@ services:
     type: php
     version: "8.1"
 ```
+
+### Recipes
+
+A recipe is a preset stack for a kind of project. With a recipe, `services` is
+optional:
+
+```yaml
+recipe: laravel
+```
+
+| Recipe    | Services                        |
+| --------- | ------------------------------- |
+| `laravel` | `php`, served from `public/`    |
+
+Services in `flight.yml` are merged over the recipe's, option by option, so you
+only list what differs. Mappings are merged key by key, lists such as
+`hostnames` are replaced, and new services are added after the recipe's:
+
+```yaml
+recipe: laravel
+
+services:
+  php:
+    version: "8.3"   # keeps the recipe's webroot
+  worker:
+    type: php
+```
+
+A recipe's services can be changed but not removed. Options a recipe leaves
+out, such as the PHP version, use the service defaults.
 
 ### Hostnames
 

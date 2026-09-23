@@ -1,5 +1,6 @@
 <?php
 
+use App\Recipes\Laravel;
 use App\Services\Php;
 use App\Services\Traefik;
 
@@ -61,6 +62,19 @@ return [
 
     'project_services' => [
         'php' => Php::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Recipes
+    |--------------------------------------------------------------------------
+    |
+    | The preset stacks a flight.yml can use with `recipe:`, keyed by name.
+    |
+    */
+
+    'recipes' => [
+        'laravel' => Laravel::class,
     ],
 
 ];

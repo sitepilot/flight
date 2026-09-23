@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Exceptions\FlightException;
+use App\Recipes\Recipe;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -20,8 +22,10 @@ class ProjectConfig
 
     protected ?string $root = null;
 
-    /** @var array{name: string, services: array<string, array<string, mixed>>}|null */
+    /** @var array{name: string, recipe: ?string, services: array<string, array<string, mixed>>}|null */
     protected ?array $settings = null;
+
+    public function __construct(protected Container $container) {}
 
     /**
      * The directory containing flight.yml, found by searching up from the
@@ -79,6 +83,11 @@ class ProjectConfig
         return $this->load()['name'];
     }
 
+    public function recipe(): ?string
+    {
+        return $this->load()['recipe'];
+    }
+
     /**
      * Options by service name, each with its type set.
      *
@@ -90,9 +99,10 @@ class ProjectConfig
     }
 
     /**
-     * Read and validate flight.yml. Parsed once per run.
+     * Read and validate flight.yml, merged over its recipe. Parsed once per
+     * run.
      *
-     * @return array{name: string, services: array<string, array<string, mixed>>}
+     * @return array{name: string, recipe: ?string, services: array<string, array<string, mixed>>}
      */
     public function load(): array
     {
@@ -116,17 +126,63 @@ class ProjectConfig
 
         $this->validate($parsed);
 
+        $recipe = $parsed['recipe'] ?? null;
+
+        $merged = $this->merge(
+            $recipe === null ? [] : $this->makeRecipe($recipe)->services(),
+            (array) ($parsed['services'] ?? []),
+        );
+
+        $this->validateServices($merged);
+
         $services = [];
 
         // A bare `php:` is null and means "use the defaults".
-        foreach ($parsed['services'] as $name => $options) {
+        foreach ($merged as $name => $options) {
             $services[$name] = ['type' => $name, ...(array) $options];
         }
 
         return $this->settings = [
             'name' => $parsed['name'],
+            'recipe' => $recipe,
             'services' => $services,
         ];
+    }
+
+    protected function makeRecipe(string $name): Recipe
+    {
+        return $this->container->make(config('flight.recipes')[$name]);
+    }
+
+    /**
+     * Merge the project's services over the recipe's, option by option.
+     * Maps merge key by key, anything else is replaced. A null option, such
+     * as a bare `php:`, keeps the recipe's value.
+     *
+     * @param  array<array-key, mixed>  $base
+     * @param  array<array-key, mixed>  $override
+     * @return array<array-key, mixed>
+     */
+    protected function merge(array $base, array $override): array
+    {
+        foreach ($override as $key => $value) {
+            $current = $base[$key] ?? null;
+
+            if ($value === null && array_key_exists($key, $base)) {
+                continue;
+            }
+
+            $base[$key] = $this->isMap($current) && $this->isMap($value)
+                ? $this->merge($current, $value)
+                : $value;
+        }
+
+        return $base;
+    }
+
+    protected function isMap(mixed $value): bool
+    {
+        return is_array($value) && ($value === [] || ! array_is_list($value));
     }
 
     /**
@@ -134,14 +190,17 @@ class ProjectConfig
      */
     protected function validate(array $settings): void
     {
+        $recipes = array_keys((array) config('flight.recipes'));
+
         $validator = Validator::make($settings, [
             'name' => ['required', 'string', 'regex:/^[a-z0-9][a-z0-9-]*$/'],
-            'services' => ['required', 'array'],
+            'recipe' => ['nullable', 'string', 'in:'.implode(',', $recipes)],
+            'services' => ['nullable', 'required_without:recipe', 'array'],
         ], [
             'name.required' => 'Expected name to be set, or the directory name to contain a letter or digit.',
-            'name.string' => 'Expected name to be text.',
             'name.regex' => 'Expected a lowercase name such as "myapp"; it becomes myapp.<domain>.',
-            'services.required' => 'Expected services to list at least one service, such as `php: {}`.',
+            'recipe.in' => 'Expected recipe to be one of: '.implode(', ', $recipes).'.',
+            'services.required_without' => 'Expected services to list at least one service, such as `php: {}`, or a recipe such as "laravel".',
             'services.array' => 'Expected services to be a mapping, such as `php: {}`.',
         ]);
 
@@ -151,11 +210,21 @@ class ProjectConfig
             throw $this->invalid((string) $validator->errors()->first($key), $key);
         }
 
-        if (array_is_list($settings['services'])) {
+        $services = $settings['services'] ?? [];
+
+        if ($services !== [] && array_is_list($services)) {
             throw $this->invalid('Expected services to be a mapping, such as `php: {}`.', 'services');
         }
+    }
 
-        foreach ($settings['services'] as $name => $options) {
+    /**
+     * Check the merged services, so the recipe's are checked too.
+     *
+     * @param  array<array-key, mixed>  $services
+     */
+    protected function validateServices(array $services): void
+    {
+        foreach ($services as $name => $options) {
             if (! preg_match('/^[a-z0-9][a-z0-9_-]*$/', (string) $name)) {
                 throw $this->invalid('Expected a lowercase service name such as "php".', "services.{$name}");
             }

@@ -93,3 +93,13 @@ it('explains when there is no flight.yml', function () {
     expect($exitCode)->toBe(1)
         ->and(Artisan::output())->toContain('No flight.yml found');
 });
+
+it('serves a recipe project and names the recipe', function () {
+    file_put_contents($this->project.'/flight.yml', "recipe: laravel\n");
+
+    $this->withoutMockingConsoleOutput()->artisan('up');
+
+    expect(Artisan::output())->toContain('Recipe')
+        ->toContain('laravel')
+        ->toContain('https://myapp.flght.dev');
+});

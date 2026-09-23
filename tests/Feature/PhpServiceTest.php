@@ -193,3 +193,13 @@ it('lists every hostname in the summary order', function () {
         ['myapp-admin.flght.dev'],
     ]);
 });
+
+it('leaves options a recipe does not set to the service defaults', function () {
+    flightProject(['recipe' => 'laravel']);
+
+    $php = writeProjectCompose()['services']['php'];
+
+    expect($php['build']['context'])->toBe('./.flight/php')
+        ->and(file_get_contents(getcwd().'/.flight/php/Dockerfile'))->toContain('serversideup/php:8.4-fpm-nginx')
+        ->and($php['environment']['NGINX_WEBROOT'])->toBe('/var/www/html/public');
+});

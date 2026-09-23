@@ -79,3 +79,59 @@ it('reports a yaml syntax error', function () {
 
     expect(fn () => project()->load())->toThrow(FlightException::class, 'Could not parse');
 });
+
+it('takes the services from a recipe', function () {
+    flightProject(['recipe' => 'laravel']);
+
+    expect(project()->recipe())->toBe('laravel')
+        ->and(project()->services())->toBe([
+            'php' => ['type' => 'php', 'webroot' => 'public'],
+        ]);
+});
+
+it('overrides a recipe option by option', function () {
+    flightProject(['recipe' => 'laravel', 'services' => ['php' => ['version' => '8.3']]]);
+
+    expect(project()->services()['php'])->toBe(['type' => 'php', 'webroot' => 'public', 'version' => '8.3']);
+});
+
+it('keeps the recipe options for a bare service', function () {
+    flightProject("recipe: laravel\nservices:\n  php:\n");
+
+    expect(project()->services()['php'])->toBe(['type' => 'php', 'webroot' => 'public']);
+});
+
+it('replaces lists instead of merging them', function () {
+    $merged = (fn () => $this->merge(
+        ['php' => ['hostnames' => ['shop', 'api']]],
+        ['php' => ['hostnames' => ['admin']]],
+    ))->call(project());
+
+    expect($merged)->toBe(['php' => ['hostnames' => ['admin']]]);
+});
+
+it('adds services after the recipe services', function () {
+    flightProject(['recipe' => 'laravel', 'services' => ['worker' => ['type' => 'php']]]);
+
+    expect(array_keys(project()->services()))->toBe(['php', 'worker']);
+});
+
+it('rejects an unknown recipe', function () {
+    flightProject(['recipe' => 'rails']);
+
+    expect(fn () => project()->load())->toThrow(FlightException::class, 'Invalid "recipe"');
+});
+
+it('asks for services or a recipe', function () {
+    flightProject(['name' => 'shop']);
+
+    try {
+        project()->load();
+    } catch (FlightException $e) {
+        expect($e->hint())->toContain('recipe');
+
+        return;
+    }
+
+    throw new RuntimeException('Expected flight.yml to be rejected.');
+});
