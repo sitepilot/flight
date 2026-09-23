@@ -269,3 +269,22 @@ it('rejects logs for a service the project does not have', function () {
     expect($exitCode)->toBe(1)
         ->and(Artisan::output())->toContain('The project has no "redis" service.');
 });
+
+it('lists the services in the project summary', function () {
+    file_put_contents($this->project.'/flight.yaml', "recipe:\n  laravel:\n    queue: true\nservices:\n  mariadb: {}\n");
+
+    $this->withoutMockingConsoleOutput()->artisan('up');
+
+    // A row per service: its address, or else what it is.
+    expect(Artisan::output())->toMatch('/│\s+php\s+https:\/\/myapp\.flght\.dev\s+│/')
+        ->toMatch('/│\s+mariadb\s+MariaDB 11\.8 at mariadb:3306\s+│/')
+        ->toMatch('/│\s+queue\s+php artisan queue:listen --tries=1 --timeout=0\s+│/');
+});
+
+it('shows the logs of a worker', function () {
+    file_put_contents($this->project.'/flight.yaml', "recipe:\n  laravel:\n    queue: true\n");
+
+    $this->artisan('logs queue')->assertExitCode(0);
+
+    expect($this->commands[0])->toEndWith(' logs queue');
+});

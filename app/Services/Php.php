@@ -45,6 +45,7 @@ class Php extends Service
             'extensions' => [],
             'packages' => [],
             'wp_cli' => false,
+            'access_log' => false,
         ];
     }
 
@@ -60,6 +61,7 @@ class Php extends Service
             'packages' => ['list'],
             'packages.*' => ['string', 'regex:/^[a-z0-9][a-z0-9.+-]*$/'],
             'wp_cli' => ['boolean'],
+            'access_log' => ['boolean'],
         ];
     }
 
@@ -74,6 +76,11 @@ class Php extends Service
     }
 
     public static function routes(): bool
+    {
+        return true;
+    }
+
+    public static function supportsWorkers(): bool
     {
         return true;
     }
@@ -113,6 +120,7 @@ class Php extends Service
                 // Serve HTTPS, so apps see an HTTPS request without having to
                 // trust the proxy's forwarded headers.
                 'SSL_MODE' => 'full',
+                ...$this->logEnvironment(),
             ],
             'labels' => $this->route(8443, 'https'),
         ];
@@ -177,7 +185,48 @@ class Php extends Service
             $instructions[] = 'ADD --chmod=755 '.self::WP_CLI.' /usr/local/bin/wp';
         }
 
+        // Apache's access log can't be turned off with a setting.
+        if (! $this->option('access_log') && $this->option('server') === 'fpm-apache') {
+            $instructions[] = "RUN find /etc/apache2 -type f \\( -name '*.conf' -o -name '*.template' \\) -exec sed -i '/^\\s*CustomLog /s/^/#/' {} +";
+        }
+
         return implode('', array_map(fn (string $instruction): string => "\n{$instruction}\n", $instructions));
+    }
+
+    /**
+     * Workers serve nothing, so skip the certificate the web server needs.
+     */
+    protected function workerDefinition(array $definition, string $command): array
+    {
+        $worker = parent::workerDefinition($definition, $command);
+        $worker['environment']['SSL_MODE'] = 'off';
+
+        return $worker;
+    }
+
+    /**
+     * Leave out a log line per request, which a page with its assets turns
+     * into dozens. Warnings and PHP errors are still logged.
+     *
+     * @return array<string, string>
+     */
+    protected function logEnvironment(): array
+    {
+        if ($this->option('access_log')) {
+            return [];
+        }
+
+        return match ($this->option('server')) {
+            'fpm-nginx' => ['NGINX_ACCESS_LOG' => '/dev/null'],
+            // Caddy logs each request at the info level.
+            'frankenphp' => ['LOG_OUTPUT_LEVEL' => 'warn'],
+            default => [],
+        };
+    }
+
+    public function description(): string
+    {
+        return "PHP {$this->option('version')}";
     }
 
     public function image(): string

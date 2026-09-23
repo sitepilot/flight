@@ -8,6 +8,8 @@ use App\Exceptions\FlightException;
 use App\Stacks\Stack;
 use Illuminate\Support\Str;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Helper\Helper;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -101,27 +103,54 @@ abstract class FlightCommand extends Command
     }
 
     /**
-     * A panel with the given rows around one row per URL the stack serves.
+     * A panel with the given rows, one row per service, then $after, each
+     * group separated by a blank line.
      *
      * @param  array<int, array{0: string, 1: string}>  $before
      * @param  array<int, array{0: string, 1: string}>  $after
      */
     protected function summary(string $title, Stack $stack, array $before, array $after): void
     {
-        $rows = $before;
+        $rows = [...$before, ['', ''], ...$this->serviceRows($stack), ['', ''], ...$after];
+
+        $width = max(11, ...array_map(fn (array $row): int => mb_strlen($row[0]) + 2, $rows));
+
+        $this->panel($title, array_map(
+            fn (array $row): array => [str_pad($row[0], $width), $row[1]],
+            $rows,
+        ), 'cyan');
+    }
+
+    /**
+     * A service with an address shows it, one per line. Any other service
+     * shows what it is, in gray, such as "MariaDB 11.8 at mariadb:3306".
+     * Its workers follow, with their commands.
+     *
+     * @return array<int, array{0: string, 1: string}>
+     */
+    protected function serviceRows(Stack $stack): array
+    {
+        $rows = [];
 
         foreach ($stack->services() as $service) {
-            foreach ($service->hostnames() as $hostname) {
-                $rows[] = [ucfirst($service->name()), 'https://'.$hostname];
+            $urls = array_map(fn (string $hostname): string => 'https://'.$hostname, $service->hostnames());
+
+            if ($urls === []) {
+                $rows[] = [$service->name(), '<fg=gray>'.OutputFormatter::escape($service->description()).'</>'];
+
+                continue;
+            }
+
+            foreach ($urls as $i => $url) {
+                $rows[] = [$i === 0 ? $service->name() : '', $url];
+            }
+
+            foreach ($service->workers() as $worker => $command) {
+                $rows[] = [$worker, '<fg=gray>'.OutputFormatter::escape($command).'</>'];
             }
         }
 
-        $rows = [...$rows, ...$after];
-
-        $this->panel($title, array_map(
-            fn (array $row): array => [str_pad($row[0], 11), $row[1]],
-            $rows,
-        ), 'cyan');
+        return $rows;
     }
 
     protected function renderFailure(FlightException $e): void
@@ -152,7 +181,7 @@ abstract class FlightCommand extends Command
         $inner = mb_strlen($title) + 4;
 
         foreach ($rows as [$label, $value]) {
-            $inner = max($inner, mb_strlen($label.$value) + 4);
+            $inner = max($inner, $this->width($label.$value) + 4);
         }
 
         $this->line(sprintf(
@@ -168,11 +197,19 @@ abstract class FlightCommand extends Command
                 $color,
                 $label,
                 $value,
-                str_repeat(' ', $inner - mb_strlen($label.$value) - 2)
+                str_repeat(' ', $inner - $this->width($label.$value) - 2)
             ));
         }
 
         $this->line(sprintf('  <fg=%1$s>╰%2$s╯</>', $color, str_repeat('─', $inner)));
+    }
+
+    /**
+     * The width text takes on screen, without its formatting tags.
+     */
+    protected function width(string $text): int
+    {
+        return Helper::width(Helper::removeDecoration($this->output->getFormatter(), $text));
     }
 
     /**

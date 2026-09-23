@@ -45,7 +45,7 @@ it('generates a routed php service built from serversideup/php', function () {
         ->and($php['volumes'])->toBe(['.:/var/www/html'])
         ->and($php['networks'])->toBe(['default', 'flight'])
         // Served over HTTPS, so apps see an HTTPS request.
-        ->and($php['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'full'])
+        ->and($php['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'full', 'NGINX_ACCESS_LOG' => '/dev/null'])
         ->and($php['labels'])->toBe([
             'traefik.enable' => 'true',
             'traefik.http.routers.flight-myapp-php.rule' => 'Host(`myapp.flght.dev`)',
@@ -118,7 +118,7 @@ it('lists the supported versions', function () {
 it('rejects an unknown option', function () {
     expect(invalidPhp(['verison' => '8.3']))
         ->toContain('Invalid "services.php.verison"')
-        ->toContain('Expected one of: version, server, webroot, project_path, extensions, packages, wp_cli, hostnames.');
+        ->toContain('Expected one of: version, server, webroot, project_path, extensions, packages, wp_cli, access_log, hostnames, workers.');
 });
 
 it('rejects an unknown service type', function () {
@@ -287,4 +287,91 @@ it('rejects a package name that is not one', function () {
     expect(invalidPhp(['packages' => ['git && curl evil']]))
         ->toContain('Invalid "services.php.packages.0"')
         ->toContain('Expected a Debian package name');
+});
+
+it('runs workers on the service image, each in a container of its own', function () {
+    flightProject(['services' => ['php' => ['version' => '8.3', 'workers' => [
+        'queue' => 'php artisan queue:work',
+        'scheduler' => ['run' => 'php artisan schedule:work'],
+    ]]]]);
+
+    $services = writeProjectCompose()['services'];
+
+    expect(array_keys($services))->toBe(['php', 'queue', 'scheduler'])
+        // The service names its image, so the workers can run it too.
+        ->and($services['php']['image'])->toBe('flight-myapp-php')
+        ->and($services['php'])->toHaveKey('build');
+
+    $queue = $services['queue'];
+
+    expect($queue['image'])->toBe('flight-myapp-php')
+        ->and($queue['pull_policy'])->toBe('never')
+        ->and($queue)->not->toHaveKeys(['build', 'labels', 'ports'])
+        ->and($queue['depends_on'])->toBe(['php'])
+        ->and($queue['command'])->toBe(['sh', '-c', 'php artisan queue:work'])
+        ->and($queue['healthcheck'])->toBe(['disable' => true])
+        // The same mounts, environment and networks as the service.
+        ->and($queue['volumes'])->toBe($services['php']['volumes'])
+        // The same environment, minus the web server's certificate.
+        ->and($queue['environment'])->toBe([...$services['php']['environment'], 'SSL_MODE' => 'off'])
+        ->and($queue['networks'])->toBe(['default', 'flight'])
+        ->and($services['scheduler']['command'])->toBe(['sh', '-c', 'php artisan schedule:work']);
+});
+
+it('leaves the image unnamed without workers', function () {
+    flightProject();
+
+    expect(writeProjectCompose()['services']['php'])->not->toHaveKey('image');
+});
+
+it('rejects invalid workers', function (mixed $workers, string $key) {
+    expect(invalidPhp(['workers' => $workers]))->toContain("Invalid \"{$key}\"");
+})->with([
+    'a list' => [['php artisan queue:work'], 'services.php.workers'],
+    'a name with spaces' => [['my queue' => 'php artisan queue:work'], 'services.php.workers.my queue'],
+    'no command' => [['queue' => ['run' => 42]], 'services.php.workers.queue'],
+]);
+
+it('rejects a worker with the name of a service', function () {
+    flightProject(['services' => ['php' => ['workers' => ['mariadb' => 'true']], 'mariadb' => null]]);
+
+    expect(fn () => writeProjectCompose())->toThrow(function (FlightException $e) {
+        expect($e->getMessage())->toContain('Invalid "services.php.workers.mariadb"')
+            ->and($e->hint())->toBe('Expected "mariadb" to be used once, but services.mariadb already uses it.');
+    });
+});
+
+it('rejects two workers with the same name', function () {
+    flightProject(['services' => [
+        'php' => ['workers' => ['queue' => 'true']],
+        'legacy' => ['type' => 'php', 'workers' => ['queue' => 'true']],
+    ]]);
+
+    expect(fn () => writeProjectCompose())->toThrow(function (FlightException $e) {
+        expect($e->getMessage())->toContain('Invalid "services.legacy.workers.queue"')
+            ->and($e->hint())->toContain('services.php.workers.queue already uses it');
+    });
+});
+
+it('leaves out the access log of each server, keeping errors', function (string $server, array $environment, bool $dockerfile) {
+    flightProject(['services' => ['php' => ['server' => $server]]]);
+
+    $php = writeProjectCompose()['services']['php'];
+
+    expect($php['environment'])->toMatchArray($environment)
+        ->and(str_contains(file_get_contents(getcwd().'/.flight/php/build/Dockerfile'), 'CustomLog'))->toBe($dockerfile);
+})->with([
+    'nginx' => ['fpm-nginx', ['NGINX_ACCESS_LOG' => '/dev/null'], false],
+    'frankenphp' => ['frankenphp', ['LOG_OUTPUT_LEVEL' => 'warn'], false],
+    // Apache has no setting for it, so the image's config is changed.
+    'apache' => ['fpm-apache', [], true],
+]);
+
+it('keeps the access log when asked', function () {
+    flightProject(['services' => ['php' => ['server' => 'fpm-apache', 'access_log' => true]]]);
+
+    $php = writeProjectCompose()['services']['php'];
+
+    expect($php['environment'])->not->toHaveKeys(['NGINX_ACCESS_LOG', 'LOG_OUTPUT_LEVEL'])
+        ->and(file_get_contents(getcwd().'/.flight/php/build/Dockerfile'))->not->toContain('CustomLog');
 });

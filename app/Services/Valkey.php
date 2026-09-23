@@ -38,6 +38,11 @@ class Valkey extends Service
         return $options;
     }
 
+    public function description(): string
+    {
+        return "Valkey {$this->option('version')} at {$this->name}:6379";
+    }
+
     public function definition(): array
     {
         return [

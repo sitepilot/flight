@@ -164,7 +164,7 @@ have to list them yourself.
 
 | Recipe      | What you get                                                  |
 | ----------- | ------------------------------------------------------------- |
-| `laravel`   | PHP, serving the `public/` folder                             |
+| `laravel`   | PHP, serving the `public/` folder, and optionally a queue worker and scheduler, see the [Laravel guide](#a-laravel-app) |
 | `wordpress` | PHP with WP-CLI and MariaDB, and WordPress installed for you, see the [WordPress guide](#a-wordpress-site) |
 
 You can change a recipe's services in `flight.yaml`. List only what you want to
@@ -213,6 +213,29 @@ Services reach each other by name: from PHP, a service called `mariadb` is at
 the host `mariadb`.
 
 See the [service reference](#service-reference) for every service and its options.
+
+### Workers
+
+Workers are background processes that belong to a service, such as a queue
+worker for your app. Each runs in a container of its own, on the service's
+image, with the same files, settings and network, so it always matches the
+service:
+
+```yaml
+services:
+  php:
+    workers:
+      queue: php artisan queue:work
+      scheduler: php artisan schedule:work
+```
+
+A worker goes by its own name, such as `queue`, so each name can be used once
+in a project, by a service or a worker. It starts and stops with the project,
+restarts when it stops, and works with `flight logs queue` and
+`flight exec --service=queue`. Give it a command that keeps running:
+`schedule:work`, not `schedule:run`.
+
+Workers are available on services that run your code, such as [PHP](#php).
 
 ### Hostnames
 
@@ -362,6 +385,32 @@ Then run `flight up` and open `https://<project>.flght.dev`. To run Artisan:
 flight exec -- php artisan migrate
 ```
 
+For queued jobs and scheduled tasks, turn on the recipe's queue worker and
+scheduler. They run as [workers](#workers) of the `php` service, on the same
+image as your app, start and stop with it, and pick up code changes by
+themselves. See their output with `flight logs -f queue` or
+`flight logs -f scheduler`.
+
+```yaml
+recipe:
+  laravel:
+    queue: true
+    scheduler: true
+```
+
+Run Vite on your machine with `npm run dev`, where it watches files fastest.
+Set `APP_URL=https://<project>.flght.dev` in `.env`, so Vite lets the site load
+its scripts. Composer scripts and Artisan run in the container:
+
+```bash
+flight exec -- composer test
+```
+
+| Recipe option | Default | What it is                                                     |
+| ------------- | ------- | -------------------------------------------------------------- |
+| `queue`       | `false` | Adds a `queue` worker running `php artisan queue:listen`       |
+| `scheduler`   | `false` | Adds a `scheduler` worker running `php artisan schedule:work`  |
+
 ### A WordPress site
 
 Create an empty folder with this `flight.yaml`:
@@ -438,6 +487,8 @@ services:
 | `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]`       |
 | `packages`     | none        | Extra Debian packages, such as `[git]`             |
 | `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`, with `less` for its help pages |
+| `workers`      | none        | Background processes on the same image, see [Workers](#workers) |
+| `access_log`   | `false`     | Log every request. Off by default, so the logs show what matters; errors are always logged. |
 | `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/php/data`. |
 | `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
 

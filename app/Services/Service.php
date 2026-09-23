@@ -44,7 +44,25 @@ abstract class Service
             $options['hostnames'] = [$options['hostnames']];
         }
 
+        // Allow `queue: {run: …}` as well as `queue: …`.
+        if (static::supportsWorkers() && is_array($options['workers'] ?? null)) {
+            $options['workers'] = array_map(
+                fn (mixed $worker): mixed => is_array($worker) && array_keys($worker) === ['run'] ? $worker['run'] : $worker,
+                $options['workers'],
+            );
+        }
+
         $this->configure($stack->config(), "services.{$name}", $options);
+
+        if ($this->workers() !== [] && array_is_list($this->workers())) {
+            throw $stack->config()->invalid('Expected workers to map names to commands, such as `queue: php artisan queue:work`.', "services.{$name}.workers");
+        }
+
+        foreach (array_keys($this->workers()) as $worker) {
+            if (! preg_match('/^[a-z0-9][a-z0-9_-]*$/', (string) $worker)) {
+                throw $stack->config()->invalid('Expected a lowercase worker name such as "queue".', "services.{$name}.workers.{$worker}");
+            }
+        }
     }
 
     /**
@@ -62,6 +80,97 @@ abstract class Service
     public static function routes(): bool
     {
         return false;
+    }
+
+    /**
+     * Whether the service takes `workers`: background processes, such as a
+     * queue worker, that run on the service's image with its mounts and
+     * environment, each in a container of its own.
+     */
+    public static function supportsWorkers(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Commands by worker name.
+     *
+     * @return array<string, string>
+     */
+    public function workers(): array
+    {
+        return static::supportsWorkers() ? $this->options['workers'] : [];
+    }
+
+    /**
+     * The names of this service's compose services, e.g. "php", "queue".
+     *
+     * @return array<int, string>
+     */
+    public function composeNames(): array
+    {
+        return [$this->name, ...array_keys($this->workers())];
+    }
+
+    /**
+     * The compose services for this service and its workers, by name. A
+     * worker goes by its own name, e.g. "queue"; the stack checks that no
+     * two names in the project are the same.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function composeServices(): array
+    {
+        $definition = $this->definition();
+
+        if ($this->workers() === []) {
+            return [$this->name => $definition];
+        }
+
+        // Name a built image, so the workers can run it too.
+        if (isset($definition['build'])) {
+            $definition['image'] = $this->workerImage();
+        }
+
+        $services = [$this->name => $definition];
+
+        foreach ($this->workers() as $worker => $command) {
+            $services[$worker] = $this->workerDefinition($definition, $command);
+        }
+
+        return $services;
+    }
+
+    /**
+     * The service's own definition, with its command instead and without
+     * what belongs to the service alone: its build, ports, addresses and
+     * its healthcheck, which checks what the service runs.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return array<string, mixed>
+     */
+    protected function workerDefinition(array $definition, string $command): array
+    {
+        $built = isset($definition['build']);
+
+        unset($definition['build'], $definition['ports'], $definition['labels'], $definition['healthcheck'], $definition['pull_policy']);
+
+        return [
+            ...$definition,
+            // Built by the service itself, so never pulled.
+            ...($built ? ['pull_policy' => 'never'] : []),
+            'depends_on' => [$this->name],
+            'command' => ['sh', '-c', $command],
+            'healthcheck' => ['disable' => true],
+        ];
+    }
+
+    /**
+     * E.g. "flight-myapp-php".
+     */
+    protected function workerImage(): string
+    {
+        return $this->stack->name().'-'.$this->name;
     }
 
     public function name(): string
@@ -104,6 +213,15 @@ abstract class Service
     public function environment(): array
     {
         return [];
+    }
+
+    /**
+     * What the service is, for the summary of a service without an address,
+     * e.g. "MariaDB 11.8 at mariadb:3306".
+     */
+    public function description(): string
+    {
+        return '';
     }
 
     /**
@@ -168,9 +286,11 @@ abstract class Service
      */
     protected function allDefaults(): array
     {
-        return static::routes()
-            ? [...$this->defaults(), 'hostnames' => []]
-            : $this->defaults();
+        return [
+            ...$this->defaults(),
+            ...(static::routes() ? ['hostnames' => []] : []),
+            ...(static::supportsWorkers() ? ['workers' => []] : []),
+        ];
     }
 
     /**
@@ -178,9 +298,11 @@ abstract class Service
      */
     protected function allRules(): array
     {
-        return static::routes()
-            ? [...$this->rules(), 'hostnames' => ['list'], 'hostnames.*' => ['string', 'regex:'.self::LABEL]]
-            : $this->rules();
+        return [
+            ...$this->rules(),
+            ...(static::routes() ? ['hostnames' => ['list'], 'hostnames.*' => ['string', 'regex:'.self::LABEL]] : []),
+            ...(static::supportsWorkers() ? ['workers' => ['array'], 'workers.*' => ['string']] : []),
+        ];
     }
 
     /**
@@ -190,6 +312,8 @@ abstract class Service
     {
         return [
             'hostnames.*.regex' => 'Expected a lowercase subdomain such as "admin", which becomes admin.'.$this->global->domain().'.',
+            'workers.array' => 'Expected workers to map names to commands, such as `queue: php artisan queue:work`.',
+            'workers.*.string' => 'Expected a command, such as "php artisan queue:work".',
             ...$this->messages(),
         ];
     }

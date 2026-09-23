@@ -23,7 +23,8 @@ abstract class ProjectCommand extends FlightCommand
      */
     protected function service(ProjectStack $stack, ?string $name): string
     {
-        $services = array_map(fn ($service): string => $service->name(), $stack->services());
+        // Workers too, such as "queue".
+        $services = array_merge(...array_map(fn ($service): array => $service->composeNames(), $stack->services()));
 
         if ($name === null) {
             return $services[0];

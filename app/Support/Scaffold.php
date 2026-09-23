@@ -22,10 +22,11 @@ class Scaffold
         foreach ($stack->services() as $service) {
             $service->prepare();
 
-            $definition = $service->definition();
-            $definition['networks'] ??= $stack->serviceNetworks();
+            foreach ($service->composeServices() as $name => $definition) {
+                $definition['networks'] ??= $stack->serviceNetworks();
+                $services[$name] = $definition;
+            }
 
-            $services[$service->name()] = $definition;
             $volumes += $service->volumes();
         }
 

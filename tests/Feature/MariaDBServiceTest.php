@@ -51,3 +51,8 @@ it('rejects an unsupported version', function () {
     expect(fn () => mariadbCompose(['version' => '5.5']))
         ->toThrow(FlightException::class, 'Invalid "services.mariadb.version"');
 });
+
+it('takes no workers', function () {
+    expect(fn () => mariadbCompose(['workers' => ['backup' => 'sleep 1']]))
+        ->toThrow(FlightException::class, 'Invalid "services.mariadb.workers"');
+});

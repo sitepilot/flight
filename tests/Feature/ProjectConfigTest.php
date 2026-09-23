@@ -195,3 +195,38 @@ it('rejects an invalid provision step', function (mixed $provision, string $key)
     'missing command' => [[['name' => 'Install', 'service' => 'php']], 'provision.0.run'],
     'unknown key' => [[['name' => 'Install', 'service' => 'php', 'run' => 'true', 'user' => 'root']], 'provision.0'],
 ]);
+
+it('adds a queue worker with the laravel recipe queue option', function () {
+    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'services' => ['php' => ['version' => '8.3']]]);
+
+    expect(project()->services()['php'])->toBe([
+        'type' => 'php',
+        'webroot' => 'public',
+        'workers' => ['queue' => 'php artisan queue:listen --tries=1 --timeout=0'],
+        'version' => '8.3',
+    ]);
+});
+
+it('lets flight.yaml change and add workers next to the recipe ones', function () {
+    flightProject(['recipe' => ['laravel' => ['queue' => true]], 'services' => ['php' => ['workers' => [
+        'queue' => 'php artisan queue:work',
+        'horizon' => 'php artisan horizon',
+    ]]]]);
+
+    expect(project()->services()['php']['workers'])->toBe([
+        'queue' => 'php artisan queue:work',
+        'horizon' => 'php artisan horizon',
+    ]);
+});
+
+it('adds no workers by default', function () {
+    flightProject(['recipe' => 'laravel']);
+
+    expect(project()->services()['php'])->not->toHaveKey('workers');
+});
+
+it('adds a scheduler with the laravel recipe scheduler option', function () {
+    flightProject(['recipe' => ['laravel' => ['scheduler' => true]]]);
+
+    expect(project()->services()['php']['workers'])->toBe(['scheduler' => 'php artisan schedule:work']);
+});

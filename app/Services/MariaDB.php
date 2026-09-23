@@ -67,6 +67,11 @@ class MariaDB extends Service
         return $this->option('password');
     }
 
+    public function description(): string
+    {
+        return "MariaDB {$this->option('version')} at {$this->name}:3306";
+    }
+
     public function definition(): array
     {
         return [

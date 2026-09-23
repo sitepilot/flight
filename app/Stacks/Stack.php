@@ -112,6 +112,7 @@ abstract class Stack
             ]);
         }
 
+        $this->ensureUniqueNames($services);
         $this->ensureUniqueHostnames($services);
 
         return $this->services = $services;
@@ -175,6 +176,33 @@ abstract class Stack
         }
 
         return $environment;
+    }
+
+    /**
+     * Workers go by their own name, which a service or another worker could
+     * use too; compose would then merge them into one.
+     *
+     * @param  array<int, Service>  $services
+     */
+    protected function ensureUniqueNames(array $services): void
+    {
+        $claimed = [];
+
+        foreach ($services as $service) {
+            $claimed[$service->name()] = "services.{$service->name()}";
+        }
+
+        foreach ($services as $service) {
+            foreach (array_keys($service->workers()) as $worker) {
+                $path = "services.{$service->name()}.workers.{$worker}";
+
+                if (isset($claimed[$worker])) {
+                    throw $this->config->invalid("Expected \"{$worker}\" to be used once, but {$claimed[$worker]} already uses it.", $path);
+                }
+
+                $claimed[$worker] = $path;
+            }
+        }
     }
 
     /**
