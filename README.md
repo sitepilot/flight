@@ -382,10 +382,12 @@ Later runs skip these steps, so your site is left as it is.
 | `admin_password` | `admin`          | Administrator password  |
 | `admin_email`    | `admin@flght.dev`| Administrator email     |
 
-WP-CLI is installed in the PHP container:
+WP-CLI is installed in the PHP container, together with the MariaDB client for
+its database commands:
 
 ```bash
 flight exec -- wp plugin list
+flight exec -- wp db export backup.sql
 ```
 
 ### A WordPress theme or plugin
@@ -433,7 +435,8 @@ services:
 | `server`       | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`          |
 | `webroot`      | `public`    | The folder the web server serves; `.` for the root |
 | `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]`       |
-| `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`      |
+| `packages`     | none        | Extra Debian packages, such as `[git]`             |
+| `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`, with `less` for its help pages |
 | `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/php/data`. |
 | `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
 

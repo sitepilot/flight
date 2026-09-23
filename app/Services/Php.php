@@ -43,6 +43,7 @@ class Php extends Service
             'webroot' => 'public',
             'project_path' => '.',
             'extensions' => [],
+            'packages' => [],
             'wp_cli' => false,
         ];
     }
@@ -56,6 +57,8 @@ class Php extends Service
             'project_path' => ['string', 'regex:'.self::PATH],
             'extensions' => ['list'],
             'extensions.*' => ['string', 'regex:/^[a-z0-9_]+$/'],
+            'packages' => ['list'],
+            'packages.*' => ['string', 'regex:/^[a-z0-9][a-z0-9.+-]*$/'],
             'wp_cli' => ['boolean'],
         ];
     }
@@ -66,6 +69,7 @@ class Php extends Service
             'webroot.regex' => 'Expected a path inside the project, such as "public".',
             'project_path.regex' => 'Expected a path inside the app, such as "modules/my-module".',
             'extensions.*.regex' => 'Expected an extension name such as "mysqli".',
+            'packages.*.regex' => 'Expected a Debian package name such as "git".',
         ];
     }
 
@@ -149,6 +153,17 @@ class Php extends Service
     protected function installInstructions(): string
     {
         $instructions = [];
+
+        // WP-CLI shows its help through less.
+        $packages = array_values(array_unique([
+            ...$this->option('packages'),
+            ...($this->option('wp_cli') ? ['less'] : []),
+        ]));
+
+        // serversideup's helper, which also cleans up after apt.
+        if ($packages !== []) {
+            $instructions[] = 'RUN docker-php-serversideup-dep-install-debian "'.implode(' ', $packages).'"';
+        }
 
         if ($this->option('extensions') !== []) {
             $instructions[] = 'RUN install-php-extensions '.implode(' ', $this->option('extensions'));

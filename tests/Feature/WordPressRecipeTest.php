@@ -31,6 +31,8 @@ it('runs php with wp-cli and mariadb', function () {
 
     expect($services['php'])->toMatchArray(['webroot' => '.', 'wp_cli' => true])
         ->and($services['php']['extensions'])->toContain('mysqli')
+        // For wp db export and import.
+        ->and($services['php']['packages'])->toBe(['mariadb-client'])
         ->and($services['mariadb'])->toMatchArray(['type' => 'mariadb', 'database' => 'wordpress']);
 });
 

@@ -116,7 +116,7 @@ it('lists the supported versions', function () {
 it('rejects an unknown option', function () {
     expect(invalidPhp(['verison' => '8.3']))
         ->toContain('Invalid "services.php.verison"')
-        ->toContain('Expected one of: version, server, webroot, project_path, extensions, wp_cli, hostnames.');
+        ->toContain('Expected one of: version, server, webroot, project_path, extensions, packages, wp_cli, hostnames.');
 });
 
 it('rejects an unknown service type', function () {
@@ -261,3 +261,28 @@ it('rejects a project_path outside the app', function (string $path) {
         ->toContain('Invalid "services.php.project_path"')
         ->toContain('Expected a path inside the app');
 })->with(['/var/www', '../elsewhere']);
+
+it('installs debian packages in the image', function () {
+    flightProject(['services' => ['php' => ['packages' => ['git', 'mariadb-client']]]]);
+
+    writeProjectCompose();
+    $dockerfile = file_get_contents(getcwd().'/.flight/php/build/Dockerfile');
+
+    expect($dockerfile)->toContain("RUN docker-php-serversideup-dep-install-debian \"git mariadb-client\"\n")
+        ->and(strpos($dockerfile, 'dep-install-debian'))->toBeLessThan(strpos($dockerfile, 'USER www-data'));
+});
+
+it('installs less with wp-cli, which pages its help through it', function () {
+    flightProject(['services' => ['php' => ['wp_cli' => true, 'packages' => ['less', 'git']]]]);
+
+    writeProjectCompose();
+
+    expect(file_get_contents(getcwd().'/.flight/php/build/Dockerfile'))
+        ->toContain('RUN docker-php-serversideup-dep-install-debian "less git"');
+});
+
+it('rejects a package name that is not one', function () {
+    expect(invalidPhp(['packages' => ['git && curl evil']]))
+        ->toContain('Invalid "services.php.packages.0"')
+        ->toContain('Expected a Debian package name');
+});

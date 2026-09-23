@@ -40,6 +40,8 @@ class WordPress extends Recipe
             'php' => [
                 'webroot' => '.',
                 'extensions' => ['mysqli', 'gd', 'exif', 'intl'],
+                // For `wp db export`, `wp db import` and the like.
+                'packages' => ['mariadb-client'],
                 'wp_cli' => true,
             ],
             'mariadb' => [
