@@ -135,6 +135,9 @@ class Php extends Service
 
         FROM {$this->image()}
 
+        # Keep the logs to what the app writes.
+        ENV SHOW_WELCOME_MESSAGE=false
+
         USER root
 
         ARG USER_ID
