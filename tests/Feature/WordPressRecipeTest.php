@@ -48,8 +48,8 @@ it('downloads, configures and installs wordpress, each once', function () {
 it('connects wordpress to the mariadb service', function () {
     $command = wordpressSteps()['Configure WordPress']->command;
 
-    expect($command)->toStartWith("wp config create --dbhost='mariadb' --dbname='wordpress' --dbuser='wordpress' --dbpass='wordpress' --extra-php <<'PHP'")
-        ->and($command)->toContain("\$_SERVER['HTTPS'] = 'on';");
+    // PHP serves HTTPS itself, so wp-config.php needs nothing for the proxy.
+    expect($command)->toBe("wp config create --dbhost='mariadb' --dbname='wordpress' --dbuser='wordpress' --dbpass='wordpress'");
 });
 
 it('installs wordpress at the project url with the default admin', function () {

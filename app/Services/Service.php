@@ -141,10 +141,11 @@ abstract class Service
 
     /**
      * Traefik labels that route hostnames() to a port in this container.
+     * With https, Traefik accepts the container's self-signed certificate.
      *
      * @return array<string, string>
      */
-    protected function route(int $port): array
+    protected function route(int $port, string $scheme = 'http'): array
     {
         // Router names are global in Traefik, so prefix them with the stack.
         $router = $this->stack->name().'-'.$this->name;
@@ -158,6 +159,7 @@ abstract class Service
             'traefik.enable' => 'true',
             "traefik.http.routers.{$router}.rule" => $rule,
             "traefik.http.services.{$router}.loadbalancer.server.port" => (string) $port,
+            ...($scheme === 'http' ? [] : ["traefik.http.services.{$router}.loadbalancer.server.scheme" => $scheme]),
         ];
     }
 

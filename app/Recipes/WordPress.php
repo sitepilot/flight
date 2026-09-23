@@ -70,7 +70,7 @@ class WordPress extends Recipe
                     'dbname' => $database->database(),
                     'dbuser' => $database->user(),
                     'dbpass' => $database->password(),
-                ]).' --extra-php <<'."'PHP'\n".$this->extraPhp()."\nPHP")
+                ]))
                 ->unless('test -f wp-config.php'),
 
             Step::make('Install WordPress')
@@ -84,19 +84,6 @@ class WordPress extends Recipe
                 ]))
                 ->unless('wp core is-installed'),
         ];
-    }
-
-    /**
-     * The proxy terminates TLS, so trust the scheme it forwards. Otherwise
-     * WordPress would redirect every https request to itself.
-     */
-    protected function extraPhp(): string
-    {
-        return <<<'PHP'
-        if (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {
-            $_SERVER['HTTPS'] = 'on';
-        }
-        PHP;
     }
 
     /**

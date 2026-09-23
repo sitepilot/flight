@@ -44,11 +44,13 @@ it('generates a routed php service built from serversideup/php', function () {
         ->and($php['pull_policy'])->toBe('build')
         ->and($php['volumes'])->toBe(['.:/var/www/html'])
         ->and($php['networks'])->toBe(['default', 'flight'])
-        ->and($php['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'off'])
+        // Served over HTTPS, so apps see an HTTPS request.
+        ->and($php['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'full'])
         ->and($php['labels'])->toBe([
             'traefik.enable' => 'true',
             'traefik.http.routers.flight-myapp-php.rule' => 'Host(`myapp.flght.dev`)',
-            'traefik.http.services.flight-myapp-php.loadbalancer.server.port' => '8080',
+            'traefik.http.services.flight-myapp-php.loadbalancer.server.port' => '8443',
+            'traefik.http.services.flight-myapp-php.loadbalancer.server.scheme' => 'https',
         ])
         ->and($compose['networks']['flight'])->toBe(['name' => 'flight', 'external' => true]);
 });

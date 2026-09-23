@@ -110,10 +110,11 @@ class Php extends Service
             'working_dir' => self::APP_DIR,
             'environment' => [
                 self::SERVERS[$this->option('server')] => $this->documentRoot(),
-                // The proxy terminates TLS and connects over HTTP on 8080.
-                'SSL_MODE' => 'off',
+                // Serve HTTPS, so apps see an HTTPS request without having to
+                // trust the proxy's forwarded headers.
+                'SSL_MODE' => 'full',
             ],
-            'labels' => $this->route(8080),
+            'labels' => $this->route(8443, 'https'),
         ];
     }
 

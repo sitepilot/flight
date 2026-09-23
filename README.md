@@ -441,6 +441,10 @@ services:
 | `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/php/data`. |
 | `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
 
+The container serves HTTPS itself, behind Flight's proxy, so apps such as
+Laravel and WordPress see an HTTPS request and create `https://` links without
+any configuration.
+
 The image is built with your user and group ID, so files the container creates
 in your project belong to you.
 
