@@ -54,7 +54,7 @@ abstract class FlightCommand extends Command
     {
         $this->line('');
         $this->line(sprintf(
-            '  <fg=white;options=bold>✈  Flight</> <fg=gray>%s</>',
+            '  <fg=cyan;options=bold>✈  Flight</> <fg=gray>%s</>',
             config('app.version')
         ));
         $this->line('');
