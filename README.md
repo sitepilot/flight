@@ -1,30 +1,71 @@
 # ✈️ Flight
 
-Flight gives every project on your machine its own trusted HTTPS address, such
-as `https://myapp.flght.dev`. There are no ports to remember, no certificate
-warnings and no hosts file to edit.
+Flight is a local development environment for your web projects, built on
+Docker. Describe what a project needs in a small `flight.yaml` file, run
+`flight up`, and Flight starts your app and its services at a trusted HTTPS
+address such as `https://myapp.flght.dev`, ready to work on.
 
-You describe what a project needs in a small `flight.yaml` file, run
-`flight up`, and Flight starts it in Docker.
-
-- **Trusted HTTPS** for every project, with one local wildcard certificate.
-- **Recipes** for common projects, such as Laravel and WordPress.
-- **Provisioning** steps that set a project up on its first start.
+- **Trusted HTTPS, zero setup.** Every project gets its own address with a
+  locally trusted certificate. No ports to remember, no hosts file to edit and
+  no browser warnings.
+- **Recipes for popular apps.** A recipe is a ready-made setup for a kind of
+  project, such as Laravel or WordPress. One line in `flight.yaml` gives you
+  PHP, a database and background workers, configured to work together.
+- **Ready on the first start.** Provisioning steps install dependencies and
+  set your project up on `flight up`, even a complete WordPress site, so a
+  fresh checkout is ready to work on.
+- **Bring your own Docker Compose.** Run an existing compose project as it is,
+  or extend Flight's services with compose files of your own.
+- **Share in seconds.** `flight share` gives anyone a public URL to your local
+  project, for a quick preview or to receive webhooks. No account needed.
+- **Plain Docker underneath.** Flight writes normal Compose files, so you can
+  always see what runs, and every project stays isolated in its own
+  containers.
 
 ## Contents
 
-- [Getting started](#getting-started)
-- [How Flight works](#how-flight-works)
-- [Commands](#commands)
-- [The flight.yaml file](#the-flightyaml-file)
+- [Installation](#installation)
+    - [Requirements](#requirements)
+    - [Installing Flight](#installing-flight)
+    - [Your First Project](#your-first-project)
+- [How Flight Works](#how-flight-works)
+- [Managing Projects](#managing-projects)
+    - [Starting and Stopping Projects](#starting-and-stopping-projects)
+    - [Running Commands](#running-commands)
+    - [Viewing Logs](#viewing-logs)
+    - [Sharing Projects](#sharing-projects)
+- [Configuring Projects](#configuring-projects)
+    - [The App](#the-app)
+    - [Recipes](#recipes)
+    - [Services](#services)
+    - [Workers](#workers)
+    - [Hostnames](#hostnames)
+    - [Provisioning](#provisioning)
+    - [Secrets](#secrets)
+    - [Compose Files](#compose-files)
+    - [The .flight Directory](#the-flight-directory)
 - [Guides](#guides)
-- [Service reference](#service-reference)
-- [Global configuration](#global-configuration)
+    - [Laravel](#laravel)
+    - [WordPress](#wordpress)
+    - [WordPress Themes and Plugins](#wordpress-themes-and-plugins)
+    - [Docker Compose Projects](#docker-compose-projects)
+- [Available Services](#available-services)
+    - [PHP](#php)
+    - [MariaDB](#mariadb)
+    - [Valkey](#valkey)
+    - [Compose](#compose)
+    - [Traefik](#traefik)
+- [Global Configuration](#global-configuration)
+    - [Adding Services to the Flight Stack](#adding-services-to-the-flight-stack)
+    - [Custom Traefik Configuration](#custom-traefik-configuration)
 - [Troubleshooting](#troubleshooting)
-- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Getting started
+<a name="installation"></a>
+## Installation
 
+<a name="requirements"></a>
 ### Requirements
 
 - Docker with the Compose plugin
@@ -32,113 +73,193 @@ You describe what a project needs in a small `flight.yaml` file, run
   (`mkcert.exe` on Windows when you use WSL)
 - PHP 8.4.1 or newer
 
-### Install
+<a name="installing-flight"></a>
+### Installing Flight
 
-Download Flight into a folder on your `PATH`:
+Download Flight into a directory on your `PATH`:
 
-```bash
+```shell
 mkdir -p ~/.local/bin
 curl -fsSL https://github.com/sitepilot/flight/releases/latest/download/flight -o ~/.local/bin/flight
 chmod +x ~/.local/bin/flight
 ```
 
-Check that it works:
+Then check that it works:
 
-```bash
+```shell
 flight --version
 ```
 
-To update later, run `flight self-update`.
+To update Flight to the latest release later on, run:
 
-### Your first project
+```shell
+flight self-update
+```
 
-1. Create a project folder with a page to serve:
+<a name="your-first-project"></a>
+### Your First Project
 
-   ```bash
-   mkdir -p hello/public
-   echo '<?php echo "Hello from Flight";' > hello/public/index.php
-   cd hello
-   ```
+To get started, create a project directory with a page to serve:
 
-2. Add a `flight.yaml` that runs it on PHP:
+```shell
+mkdir -p hello/public
+echo '<?php echo "Hello from Flight";' > hello/public/index.php
+cd hello
+```
 
-   ```yaml
-   app: php:8.4
-   ```
+Next, add a `flight.yaml` file that runs the project on PHP:
 
-3. Start it:
+```yaml
+app: php:8.4
+```
 
-   ```bash
-   flight up
-   ```
+Finally, start the project:
 
-4. Open `https://hello.flght.dev` in your browser.
+```shell
+flight up
+```
 
-The address comes from the folder name, and PHP serves the `public/` folder by
-default. For Laravel and WordPress, a [recipe](#recipes) sets up the app and
-services for you.
+Your project is now available at `https://hello.flght.dev`. The address comes
+from the directory name, and PHP serves the `public` directory by default. For
+Laravel and WordPress, a [recipe](#recipes) sets up the app and its services
+for you.
 
-The first time, Flight creates a certificate and asks mkcert to trust it.
-Restart your browser afterwards so it picks up the new certificate authority.
+> [!NOTE]
+> The first time, Flight creates a certificate and asks mkcert to trust it.
+> Restart your browser afterwards, so it picks up the new certificate
+> authority.
 
-## How Flight works
+<a name="how-flight-works"></a>
+## How Flight Works
 
 Flight runs two kinds of Docker stacks:
 
 - **The Flight stack** runs once for your whole machine. It contains
   [Traefik](https://traefik.io), a proxy that listens on ports 80 and 443 and
   sends each `https://*.flght.dev` request to the right project.
-- **A project stack** runs the app and services one project needs, such as
-  PHP and MariaDB. Its app and other web services join the Flight stack's
-  network, so Traefik can reach them; databases stay private to the project.
+- **A project stack** runs the app and services of one project, such as PHP
+  and MariaDB. Its app and other web services join the Flight stack's network,
+  so Traefik can reach them, while databases stay private to the project.
 
-`flight up` starts the Flight stack when it isn't running yet, then the
-project. Stopping a project leaves the Flight stack running for your other
-projects.
+The `flight up` command starts the Flight stack when it isn't running yet, and
+then the project. Stopping a project leaves the Flight stack running for your
+other projects.
 
-Flight writes a normal Docker Compose file for every stack, so you can always
+Flight writes a normal Docker Compose file for every stack, so you may always
 look at what runs and why.
 
-## Commands
+<a name="managing-projects"></a>
+## Managing Projects
 
-Run these from anywhere inside a project:
+Project commands may be run from anywhere inside a project. Add `-v` to any
+command to see Docker's full output instead of a spinner, which helps when
+something fails to start.
 
-| Command         | What it does                                                   |
-| --------------- | -------------------------------------------------------------- |
-| `flight up`     | Starts the Flight stack when needed, then the project, then runs its [provisioning](#provisioning) steps |
-| `flight down`   | Stops the project; the Flight stack keeps running              |
-| `flight restart`| Recreates the project's containers                             |
-| `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `.env`. |
-| `flight shell [service]` | Opens a shell in a container, by default your app's |
-| `flight exec -- <command>` | Runs a command in your app's container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
-| `flight logs [service]` | Shows a container's logs, by default your app's. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
-| `flight share [service]` | Shares your app, or another service with a URL, at a temporary public URL until you press Ctrl+C. See [Sharing a project](#sharing-a-project). |
+<a name="starting-and-stopping-projects"></a>
+### Starting and Stopping Projects
 
-These manage the Flight stack itself:
+The `up` command starts the Flight stack when needed, then the project, and
+then runs its [provisioning](#provisioning) steps:
 
-| Command               | What it does                                             |
-| --------------------- | -------------------------------------------------------- |
-| `flight stack:up`     | Starts the Flight stack, creating a certificate when needed |
-| `flight stack:down`   | Stops it                                                 |
-| `flight stack:restart`| Recreates its containers, e.g. after changing settings   |
-| `flight stack:secure` | Creates a new certificate and restarts the stack         |
-| `flight stack:config` | Opens the [global configuration](#global-configuration) in your editor |
-| `flight self-update`  | Updates Flight to the latest release                     |
+```shell
+flight up
+```
 
-Add `-v` to any command to see Docker's full output instead of a spinner. This
-helps when something fails to start.
+To stop the project, use the `down` command. The Flight stack keeps running for
+your other projects:
 
-`flight exec` passes on the command's output and exit code, so you can use it
-in scripts and pipes. Put the command after `--`, so its options aren't read
-as Flight's: `flight exec -- composer install --no-dev`.
+```shell
+flight down
+```
 
-## The flight.yaml file
+The `restart` command recreates the project's containers, for example after
+changing `flight.yaml`:
 
-Every project has a `flight.yaml` in its root folder. `flight.yml` works too;
-when both exist, Flight uses `flight.yaml`.
+```shell
+flight restart
+```
+
+To start over, the `destroy` command removes the project's containers, volumes
+and the data in `.flight`, after asking. Your `.flight/.env` file is kept:
+
+```shell
+flight destroy
+```
+
+<a name="running-commands"></a>
+### Running Commands
+
+The `exec` command runs a command in your app's container. Put the command
+after `--`, so its options aren't read as Flight's:
+
+```shell
+flight exec -- php artisan migrate
+flight exec -- composer install --no-dev
+```
+
+To run a command in another service, pass the `--service` option:
+
+```shell
+flight exec --service=db -- mariadb --version
+```
+
+The `exec` command passes on the command's output and exit code, so you may
+use it in scripts and pipes.
+
+To open a shell in your app's container, or in the service you name, use the
+`shell` command:
+
+```shell
+flight shell
+flight shell db
+```
+
+<a name="viewing-logs"></a>
+### Viewing Logs
+
+The `logs` command shows the logs of your app, or of the service you name. Add
+`-f` to keep following them, and `--tail` to show only the latest lines:
+
+```shell
+flight logs
+flight logs -f --tail=100 queue
+```
+
+<a name="sharing-projects"></a>
+### Sharing Projects
+
+To show a running project to someone else, or to receive webhooks, use the
+`share` command:
+
+```shell
+flight share
+```
+
+Flight opens a [Cloudflare quick tunnel](https://try.cloudflare.com/) and shows
+its URL, such as `https://calm-river-lake.trycloudflare.com`. You don't need a
+Cloudflare account or anything besides Docker. The URL works until you press
+Ctrl+C, and you get a new one each time. To share another service with an
+address, name it: `flight share mailpit`.
+
+Your app keeps receiving requests for its own hostname, such as
+`myapp.flght.dev`. Flight replaces that hostname with the public one in
+redirects, cookies and responses, so apps that only know their own URL, such as
+WordPress, work unchanged. Add `--direct` to send the public hostname to your
+app and leave responses alone.
+
+> [!WARNING]
+> Anyone with the URL can open the project. Quick tunnels are meant for
+> testing: Cloudflare limits them to 200 concurrent requests, and server-sent
+> events don't work.
+
+<a name="configuring-projects"></a>
+## Configuring Projects
+
+Every project has a `flight.yaml` file in its root directory. A `flight.yml`
+file works too; when both exist, Flight uses `flight.yaml`.
 
 ```yaml
-name: shop            # optional, defaults to the folder name
+name: shop            # optional, defaults to the directory name
 
 app: php:8.3          # what runs your app
 recipe: laravel       # optional, sets up the app and services for Laravel
@@ -151,20 +272,23 @@ provision:            # optional, commands to run on `flight up`
     run: composer install
 ```
 
-| Key         | What it is                                                     |
-| ----------- | -------------------------------------------------------------- |
-| `name`      | The project name, and its address: `https://<name>.flght.dev`. Defaults to the folder name. |
-| `app`       | What runs your app, see [App](#app)                            |
-| `recipe`    | A preset app and services, see [Recipes](#recipes)             |
-| `services`  | What your app uses, see [Services](#services)                  |
+| Key         | Description |
+| ----------- | ----------- |
+| `name`      | The project name, and its address: `https://<name>.flght.dev`. Defaults to the directory name. |
+| `app`       | What runs your app, see [The App](#the-app) |
+| `recipe`    | A preset app and services, see [Recipes](#recipes) |
+| `services`  | What your app uses, see [Services](#services) |
 | `provision` | Commands to run on every `flight up`, see [Provisioning](#provisioning) |
-| `compose`   | Your own compose files, run after Flight's, see [Compose files](#compose-files) |
+| `compose`   | Your own compose files, run after Flight's, see [Compose Files](#compose-files) |
 
-A project needs an app, services or a recipe.
+A project needs an app, services or a recipe. Flight checks `flight.yaml`
+before starting anything, and names the exact setting when something is wrong.
 
-### App
+<a name="the-app"></a>
+### The App
 
-`app` says what runs your app: its type, with a version after the colon.
+The `app` key says what runs your app: its type, with a version after the
+colon:
 
 ```yaml
 app: php:8.4          # or just `php` for the default version
@@ -180,23 +304,23 @@ app:
 ```
 
 Your app runs as the `app` service and is served at
-`https://<project>.flght.dev`. `flight exec`, `flight shell` and `flight logs`
-use it unless you name another service. See [PHP](#php) for its options.
+`https://<project>.flght.dev`. The `exec`, `shell` and `logs` commands use it
+unless you name another service. See [PHP](#php) for its options. A project
+that already runs with Docker Compose may keep its compose files, see
+[Docker Compose Projects](#docker-compose-projects).
 
-A project that already runs with Docker Compose can keep its compose files,
-see [A Docker Compose project](#a-docker-compose-project).
-
+<a name="recipes"></a>
 ### Recipes
 
-A recipe is a ready-made app and services for a kind of project, so you
-don't have to list them yourself.
+A recipe is a ready-made app and services for a kind of project, so you don't
+have to list them yourself:
 
-| Recipe      | What you get                                                  |
-| ----------- | ------------------------------------------------------------- |
-| `laravel`   | PHP, serving the `public/` folder, and optionally a queue worker and scheduler, see the [Laravel guide](#a-laravel-app) |
-| `wordpress` | PHP with WP-CLI and MariaDB, and WordPress installed for you, see the [WordPress guide](#a-wordpress-site) |
+| Recipe      | Description |
+| ----------- | ----------- |
+| `laravel`   | PHP serving the `public` directory, with an optional queue worker and scheduler, see [Laravel](#laravel) |
+| `wordpress` | PHP with WP-CLI and MariaDB, with WordPress installed for you, see [WordPress](#wordpress) |
 
-You can change a recipe's app and services in `flight.yaml`. List only what
+You may change a recipe's app and services in `flight.yaml`. List only what
 you want to be different; everything else stays as the recipe set it:
 
 ```yaml
@@ -207,19 +331,19 @@ services:
   db: mariadb        # adds a database next to the recipe's app
 ```
 
-A few rules:
+A few rules apply:
 
-- Options are changed one by one. Lists, such as `hostnames`, are replaced as
-  a whole.
-- You can change and add services, but not remove the recipe's services.
+- Options are changed one by one. Lists, such as `hostnames`, are replaced as a
+  whole.
+- You may change and add services, but not remove the recipe's services.
 - Options neither the recipe nor you set use their
-  [defaults](#service-reference).
+  [defaults](#available-services).
 - To change a recipe's app or service, you don't repeat its `type`. To change
   its version, write the same type with another version, such as
   `app: php:8.3`. Another type, such as `mariadb` for Laravel's app, is an
   error, because the recipe's options wouldn't fit it.
 
-Some recipes have options of their own. Put them under the recipe's name:
+Some recipes have options of their own, which go under the recipe's name:
 
 ```yaml
 recipe:
@@ -227,11 +351,12 @@ recipe:
     admin_user: nick
 ```
 
+<a name="services"></a>
 ### Services
 
 Each entry under `services` is one container your app uses, such as a database
-or a cache. You choose its name, and its type says what it runs, with a
-version after the colon:
+or a cache. You choose its name, and its type says what it runs, with a version
+after the colon:
 
 ```yaml
 services:
@@ -248,27 +373,27 @@ services:
     database: shop
 ```
 
-Services reach each other by name: from your app, the service above is at the
-host `db`. The name `app` belongs to your app.
+Services reach each other by name, so from your app, the service above is at
+the host `db`. The name `app` belongs to your app.
 
-A service can also be an extra PHP container next to your app, served at
-its own address:
+A service may also be an extra PHP container next to your app, served at its
+own address, or a service from your own compose files, see
+[Docker Compose Projects](#docker-compose-projects):
 
 ```yaml
 services:
   legacy: php:8.1      # https://<project>-legacy.flght.dev
 ```
 
-Or a service from your own compose files, see
-[A Docker Compose project](#a-docker-compose-project).
+See [Available Services](#available-services) for every service and its
+options.
 
-See the [service reference](#service-reference) for every service and its options.
-
+<a name="workers"></a>
 ### Workers
 
 Workers are background processes of your app, such as a queue worker. Each
-runs in a container of its own, on the app's image, with the same
-files and settings, so it always matches your app:
+runs in a container of its own, on the app's image, with the same files and
+settings, so it always matches your app:
 
 ```yaml
 app:
@@ -278,22 +403,23 @@ app:
     scheduler: php artisan schedule:work
 ```
 
-A worker goes by its own name, such as `queue`, so each name can be used once
+A worker goes by its own name, such as `queue`, so each name may be used once
 in a project, by a service or a worker. It starts and stops with the project,
 restarts when it stops, and works with `flight logs queue` and
-`flight exec --service=queue`. Give it a command that keeps running:
-`schedule:work`, not `schedule:run`.
+`flight exec --service=queue`.
 
+> [!NOTE]
+> Give a worker a command that keeps running, such as `schedule:work` rather
+> than `schedule:run`.
+
+<a name="hostnames"></a>
 ### Hostnames
 
 Flight gives your app and every other web service an address under
-`flght.dev`:
-
-- Your app gets `https://<project>.flght.dev`.
-- Any other web service gets `https://<project>-<service>.flght.dev`.
-
-For a project called `shop` with an extra PHP service `legacy`, that is
-`shop.flght.dev` and `shop-legacy.flght.dev`.
+`flght.dev`. Your app gets `https://<project>.flght.dev`, and any other web
+service `https://<project>-<service>.flght.dev`. For a project called `shop`
+with an extra PHP service `legacy`, that's `shop.flght.dev` and
+`shop-legacy.flght.dev`.
 
 To answer on more addresses, for example for a multisite or an admin panel,
 add `hostnames`:
@@ -308,11 +434,13 @@ Each hostname is one subdomain, such as `admin` or `my-shop`, because the
 certificate covers one level under `flght.dev`. Two services can't share a
 hostname.
 
+<a name="provisioning"></a>
 ### Provisioning
 
 Provisioning steps are commands that set your project up, such as installing
 dependencies. They run inside the project's containers on every `flight up`,
-right after the project has started. Steps from a recipe run first, then yours.
+right after the project has started. Steps from a recipe run first, then
+yours:
 
 ```yaml
 provision:
@@ -321,22 +449,22 @@ provision:
     unless: test -d vendor
 ```
 
-| Key       | What it is                                                     |
-| --------- | -------------------------------------------------------------- |
-| `name`    | A short description, shown while the step runs                 |
+| Key       | Description |
+| --------- | ----------- |
+| `name`    | A short description, shown while the step runs |
 | `service` | Optional. The service to run the command in; defaults to your app |
-| `run`     | The shell command to run                                       |
+| `run`     | The shell command to run |
 | `unless`  | Optional. A check command; when it succeeds, the step is skipped |
-| `dir`     | Optional. The folder to run in, see below                      |
+| `dir`     | Optional. The directory to run in, see below |
 | `env`     | Optional. Secret variables the step needs, see [Secrets](#secrets) |
 
 Because steps run on every `flight up`, each one should be safe to repeat. Add
-an `unless` check to skip a step once its work is done, or use a command that
-is harmless to run again. When a step fails, `flight up` stops and shows what
-went wrong.
+an `unless` check to skip a step once its work is done, or use a command that's
+harmless to run again. When a step fails, `flight up` stops and shows what went
+wrong.
 
-A step runs in the service's working folder, which for `app` is your app. Use
-`dir` to run it somewhere else:
+A step runs in the service's working directory, which for `app` is your app.
+Use `dir` to run it somewhere else:
 
 ```yaml
 provision:
@@ -345,12 +473,43 @@ provision:
     run: composer install
 ```
 
-### Compose files
+<a name="secrets"></a>
+### Secrets
 
-`compose` lists compose files of your own. Flight runs its generated
-`.flight/compose.yaml` first and your files after it, in this order, as with
-`docker compose -f`. So your files can add services and override anything
-Flight generates. For example, to mount an extra folder:
+License keys and tokens don't belong in `flight.yaml`, because you commit that
+file. Instead, list the variables a step needs under `env`, and keep their
+values somewhere private:
+
+```yaml
+provision:
+  - name: Install dependencies
+    env: [COMPOSER_AUTH]   # Composer reads this for private packages
+    run: composer install
+```
+
+Flight looks for each variable in three places, and uses the first it finds:
+
+1. Your shell, e.g. `export COMPOSER_AUTH=...`
+2. The project's `.flight/.env` file, for this project only
+3. The `~/.config/flight/.env` file, for all your projects
+
+```ini
+# ~/.config/flight/.env
+COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
+```
+
+Neither file is committed. If a variable can't be found, `flight up` stops
+before starting anything and tells you where to set it. Inside the step, use
+the variable as `${NAME}`, or let a tool read it, as Composer does here. Your
+project's own `.env` file is left alone; that one belongs to your app.
+
+<a name="compose-files"></a>
+### Compose Files
+
+The `compose` key lists compose files of your own. Flight runs its generated
+`.flight/compose.yaml` first, and your files after it in this order, as with
+`docker compose -f`. So your files may add services and override anything
+Flight generates. For example, to mount an extra directory:
 
 ```yaml
 app: php:8.4
@@ -368,62 +527,38 @@ services:
       - ./packages/my-package:/var/www/html/vendor/acme/my-package
 ```
 
-A file with `required: false` is skipped when it doesn't exist, so it can be a
-personal, git-ignored override. As with `docker compose -f`, relative paths
-and `.env` resolve from the folder of the first file. The header of
+A file with `required: false` is skipped when it doesn't exist, so it may be a
+personal, git-ignored override. As with `docker compose -f`, relative paths and
+`.env` resolve from the directory of the first file. The header of
 `.flight/compose.yaml` lists the files in the order Flight runs them.
 
-Your compose files can also define the whole project, see
-[A Docker Compose project](#a-docker-compose-project).
+Your compose files may also define a whole project, see
+[Docker Compose Projects](#docker-compose-projects).
 
-### Secrets
+<a name="the-flight-directory"></a>
+### The .flight Directory
 
-License keys and tokens don't belong in `flight.yaml`, because you commit that
-file. Instead, list the variables a step needs under `env`, and keep their
-values somewhere private:
+Flight keeps its files for a project in a `.flight` directory, which it hides
+from Git for you:
 
-```yaml
-provision:
-  - name: Install dependencies
-    env: [COMPOSER_AUTH]   # Composer reads this for private packages
-    run: composer install
-```
+| Path               | Description |
+| ------------------ | ----------- |
+| `compose.yaml`     | The generated Docker Compose file; don't edit it, add [compose files](#compose-files) instead |
+| `.env`             | Your project's [secrets](#secrets) |
+| `<service>/build/` | Files a service's image is built from |
+| `<service>/data/`  | What a service keeps, such as WordPress when you [develop a theme](#wordpress-themes-and-plugins) |
 
-Flight looks for each variable in three places and uses the first it finds:
+> [!NOTE]
+> Tools that scan your whole repository, such as linters, may need `.flight`
+> added to their ignore list.
 
-1. Your shell, e.g. `export COMPOSER_AUTH=...`
-2. The project's `.flight/.env`, for this project only
-3. `~/.config/flight/.env`, for all your projects
-
-```bash
-# ~/.config/flight/.env
-COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
-```
-
-Neither file is committed. If a variable can't be found, `flight up` stops
-before starting anything and tells you where to set it. Inside the step, use
-the variable as `${NAME}`, or let a tool read it, as Composer does here.
-
-Your project's own `.env` is left alone; that one belongs to your app.
-
-### The .flight folder
-
-Flight keeps its files for a project in a `.flight` folder, which it hides from
-Git for you.
-
-| Path                            | What it is                                    |
-| ------------------------------- | --------------------------------------------- |
-| `compose.yaml`                  | The generated Docker Compose file; don't edit it, add [compose files](#compose-files) instead |
-| `.env`                          | Your project's [secrets](#secrets)            |
-| `<service>/build/`              | Files a service's image is built from         |
-| `<service>/data/`               | What a service keeps, such as WordPress when you [develop a theme](#a-wordpress-theme-or-plugin) |
-
-Tools that scan your whole repository, such as linters, may need `.flight`
-added to their ignore list.
-
+<a name="guides"></a>
 ## Guides
 
-### A Laravel app
+<a name="laravel"></a>
+### Laravel
+
+To run a Laravel app with a database, add a `flight.yaml` file to the project:
 
 ```yaml
 recipe: laravel
@@ -432,9 +567,9 @@ services:
   db: mariadb
 ```
 
-Point Laravel's `.env` at the database:
+Then point Laravel's `.env` file at the database:
 
-```dotenv
+```ini
 DB_CONNECTION=mariadb
 DB_HOST=db
 DB_DATABASE=flight
@@ -442,17 +577,17 @@ DB_USERNAME=flight
 DB_PASSWORD=flight
 ```
 
-Then run `flight up` and open `https://<project>.flght.dev`. To run Artisan:
+Run `flight up` and open `https://<project>.flght.dev`. Artisan and Composer
+run in the container:
 
-```bash
+```shell
 flight exec -- php artisan migrate
+flight exec -- composer test
 ```
 
 For queued jobs and scheduled tasks, turn on the recipe's queue worker and
-scheduler. They run as [workers](#workers) of your app, on the same image
-as your app, start and stop with it, and pick up code changes by
-themselves. See their output with `flight logs -f queue` or
-`flight logs -f scheduler`.
+scheduler. They run as [workers](#workers) of your app, start and stop with it,
+and pick up code changes by themselves:
 
 ```yaml
 recipe:
@@ -461,54 +596,55 @@ recipe:
     scheduler: true
 ```
 
-Run Vite on your machine with `npm run dev`, where it watches files fastest.
-Set `APP_URL=https://<project>.flght.dev` in `.env`, so Vite lets the site load
-its scripts. Composer scripts and Artisan run in the container:
+You may follow their output with `flight logs -f queue` or
+`flight logs -f scheduler`.
 
-```bash
-flight exec -- composer test
-```
+| Recipe Option | Default | Description |
+| ------------- | ------- | ----------- |
+| `queue`       | `false` | Adds a `queue` worker running `php artisan queue:listen` |
+| `scheduler`   | `false` | Adds a `scheduler` worker running `php artisan schedule:work` |
 
-| Recipe option | Default | What it is                                                     |
-| ------------- | ------- | -------------------------------------------------------------- |
-| `queue`       | `false` | Adds a `queue` worker running `php artisan queue:listen`       |
-| `scheduler`   | `false` | Adds a `scheduler` worker running `php artisan schedule:work`  |
+> [!NOTE]
+> Run Vite on your machine with `npm run dev`, where it watches files fastest.
+> Set `APP_URL=https://<project>.flght.dev` in `.env`, so Vite lets the site
+> load its scripts.
 
-### A WordPress site
+<a name="wordpress"></a>
+### WordPress
 
-Create an empty folder with this `flight.yaml`:
+To create a WordPress site, add a `flight.yaml` file to an empty directory:
 
 ```yaml
 recipe: wordpress
 ```
 
-Run `flight up`. The first time, Flight downloads WordPress into the folder,
-creates `wp-config.php` and installs the site. Log in at
-`https://<project>.flght.dev/wp-admin` with `admin` / `admin`.
+Then run `flight up`. The first time, Flight downloads WordPress into the
+directory, creates `wp-config.php` and installs the site. Log in at
+`https://<project>.flght.dev/wp-admin` with `admin` / `admin`. Later runs skip
+these steps, so your site is left as it is.
 
-Later runs skip these steps, so your site is left as it is.
+| Recipe Option    | Default           | Description |
+| ---------------- | ----------------- | ----------- |
+| `title`          | the project name  | The site title |
+| `admin_user`     | `admin`           | The administrator's username |
+| `admin_password` | `admin`           | The administrator's password |
+| `admin_email`    | `admin@flght.dev` | The administrator's email address |
 
-| Recipe option    | Default          | What it is              |
-| ---------------- | ---------------- | ----------------------- |
-| `title`          | the project name | Site title              |
-| `admin_user`     | `admin`          | Administrator username  |
-| `admin_password` | `admin`          | Administrator password  |
-| `admin_email`    | `admin@flght.dev`| Administrator email     |
+WP-CLI is installed in your app's container, together with the MariaDB client
+for its database commands:
 
-WP-CLI is installed in your app's container, together with the MariaDB client for its
-database commands:
-
-```bash
+```shell
 flight exec -- wp plugin list
 flight exec -- wp db export backup.sql
 ```
 
-### A WordPress theme or plugin
+<a name="wordpress-themes-and-plugins"></a>
+### WordPress Themes and Plugins
 
 When your repository is a theme or a plugin, WordPress itself should stay out
 of it. Tell Flight where your project belongs inside WordPress with
-`project_path`. Flight then keeps WordPress in `.flight/app/data` and mounts your
-repository into it:
+`project_path`. Flight then keeps WordPress in `.flight/app/data`, and mounts
+your repository into it:
 
 ```yaml
 app:
@@ -523,12 +659,14 @@ provision:
 ```
 
 Run `flight up`, and your theme is installed and active in a fresh WordPress
-site. You can browse the WordPress files in `.flight/app/data`.
+site. You may browse the WordPress files in `.flight/app/data`.
 
-### A Docker Compose project
+<a name="docker-compose-projects"></a>
+### Docker Compose Projects
 
-List your compose files under `compose`, and give each service that should get
-a URL the type `compose` and its `origin`:
+To run a project that already has compose files, list them under `compose`,
+and give each service that should get an address the `compose` type and its
+`origin`:
 
 ```yaml
 app:
@@ -547,67 +685,47 @@ compose:
 ```
 
 Stop the project if it runs with plain Docker Compose, then start it with
-Flight and open `https://<project>.flght.dev`. Mailpit is served at
-`https://<project>-mailpit.flght.dev`.
+Flight:
 
-```bash
+```shell
 docker compose down
 flight up
 ```
 
-Your files run after Flight's generated file, as described in
-[Compose files](#compose-files), also when they're in a folder such as
-`.docker/`.
+Your app is now served at `https://<project>.flght.dev`, and Mailpit at
+`https://<project>-mailpit.flght.dev`. Your files run after Flight's generated
+file, as described in [Compose Files](#compose-files), also when they're in a
+directory such as `.docker`.
 
-`flight exec`, `flight shell` and `flight logs` use the app unless you name
-another service from your files:
+The `exec`, `shell` and `logs` commands use the app unless you name another
+service from your files:
 
-```bash
+```shell
 flight logs -f db
 ```
 
 The project runs as `flight-<project>`, apart from plain Docker Compose, so its
 named volumes start empty. Run your migrations, or copy a volume once:
 
-```bash
+```shell
 docker run --rm -v myapp_mssql_data:/from -v flight-myapp_mssql_data:/to alpine cp -a /from/. /to/
 ```
 
-`flight up` warns when your files also run under another project name, since
-both would publish the same ports. `flight destroy` removes your files'
-volumes too, as `docker compose down --volumes` does.
+> [!WARNING]
+> Use either Flight or plain Docker Compose for a project: both would publish
+> the same ports. `flight up` warns when your files also run under another
+> project name. `flight destroy` removes your files' volumes too, as
+> `docker compose down --volumes` does.
 
-### Sharing a project
+<a name="available-services"></a>
+## Available Services
 
-Run `flight share` in a running project to show it to someone else, or to
-receive webhooks:
-
-```sh
-flight share
-```
-
-Flight opens a [Cloudflare quick tunnel](https://try.cloudflare.com/) and
-shows its URL, such as `https://calm-river-lake.trycloudflare.com`. You don't
-need a Cloudflare account or anything installed besides Docker. The URL works
-until you press Ctrl+C, and you get a new one each time. Anyone with the URL
-can open the project.
-
-Your app keeps receiving requests for its own hostname, such as
-`myapp.flght.dev`. Flight replaces that hostname with the public one in
-redirects, cookies and responses, so apps that only know their own URL, such
-as WordPress, work unchanged. Add `--direct` to send the public hostname to
-your app and leave responses alone.
-
-Quick tunnels are meant for testing: Cloudflare limits them to 200 concurrent
-requests, and server-sent events don't work.
-
-## Service reference
-
+<a name="php"></a>
 ### PHP
 
 Runs PHP with a web server, based on
 [serversideup/php](https://serversideup.net/open-source/docker-php/), usually
-as your [app](#app). Your project is available in the container at
+as your [app](#the-app). Your project is available in the container at
 `/var/www/html`.
 
 ```yaml
@@ -616,31 +734,33 @@ app:
   extensions: [intl]
 ```
 
-| Option         | Default     | What it is                                         |
-| -------------- | ----------- | -------------------------------------------------- |
+| Option         | Default     | Description |
+| -------------- | ----------- | ----------- |
 | `type`         | `php`       | With a version after the colon: `php:8.1` to `php:8.5`. The default is `8.4`. |
-| `server`       | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp`          |
-| `webroot`      | `public`    | The folder the web server serves; `.` for the root |
-| `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]`       |
-| `packages`     | none        | Extra Debian packages, such as `[git]`             |
+| `server`       | `fpm-nginx` | `fpm-nginx`, `fpm-apache` or `frankenphp` |
+| `webroot`      | `public`    | The directory the web server serves; `.` for the root |
+| `extensions`   | none        | Extra PHP extensions, such as `[mysqli, gd]` |
+| `packages`     | none        | Extra Debian packages, such as `[git]` |
 | `wp_cli`       | `false`     | Installs [WP-CLI](https://wp-cli.org) as `wp`, with `less` for its help pages |
-| `node`         | none        | Installs [Node.js](https://nodejs.org) and npm of this version, such as `"22"`, next to PHP. Quote it, so `"20.10"` isn't read as `20.1`. |
+| `node`         | none        | Installs [Node.js](https://nodejs.org) and npm of this version, such as `"22"`, next to PHP |
 | `workers`      | none        | Background processes on the same image, see [Workers](#workers) |
-| `access_log`   | `false`     | Log every request. Off by default, so the logs show what matters; errors are always logged. |
+| `access_log`   | `false`     | Logs every request; errors are always logged |
 | `project_path` | `.`         | Where your project goes inside the app, such as `modules/my-module`. The app itself is then kept in `.flight/app/data`. |
-| `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames)       |
+| `hostnames`    | none        | Extra addresses, see [Hostnames](#hostnames) |
 
 The container serves HTTPS itself, behind Flight's proxy, so apps such as
 Laravel and WordPress see an HTTPS request and create `https://` links without
-any configuration.
+any configuration. The image is built with your user and group ID, so files the
+container creates in your project belong to you.
 
-The image is built with your user and group ID, so files the container creates
-in your project belong to you.
+> [!NOTE]
+> Quote the `node` version, so `"20.10"` isn't read as the number `20.1`.
 
+<a name="mariadb"></a>
 ### MariaDB
 
-Runs a [MariaDB](https://mariadb.org) database. Other services connect to it
-at its name, such as `db`, port `3306`. Its data is kept in a Docker volume, so
+Runs a [MariaDB](https://mariadb.org) database. Other services connect to it at
+its name, such as `db`, on port `3306`. Its data is kept in a Docker volume, so
 it survives `flight down`.
 
 ```yaml
@@ -648,39 +768,41 @@ services:
   db: mariadb:11.8
 ```
 
-| Option     | Default  | What it is                               |
-| ---------- | -------- | ---------------------------------------- |
+| Option     | Default   | Description |
+| ---------- | --------- | ----------- |
 | `type`     | `mariadb` | With a version after the colon: `10.6`, `10.11`, `11.4` or `11.8`. The default is `11.8`. |
-| `database` | `flight` | The database created on the first start  |
-| `user`     | `flight` | A user with access to that database      |
-| `password` | `flight` | The password for that user and for `root` |
+| `database` | `flight`  | The database created on the first start |
+| `user`     | `flight`  | A user with access to that database |
+| `password` | `flight`  | The password for that user and for `root` |
 
 The database, user and password are only set on the very first start. To start
 over with an empty database, run `flight destroy` and then `flight up`.
 
+<a name="valkey"></a>
 ### Valkey
 
 Runs [Valkey](https://valkey.io), a Redis-compatible store for caches, queues
-and sessions. Other services connect to it at its name, such as `cache`, port
-`6379`. Its data is kept in a Docker volume, so it survives `flight down`.
+and sessions. Other services connect to it at its name, such as `cache`, on
+port `6379`. Its data is kept in a Docker volume, so it survives `flight down`.
 
 ```yaml
 services:
   cache: valkey:9.1
 ```
 
-| Option    | Default | What it is                              |
-| --------- | ------- | --------------------------------------- |
-| `type`    | `valkey` | With a version after the colon: `7.2`, `8.0`, `8.1`, `9.0` or `9.1`. The default is `9.1`. |
+| Option | Default  | Description |
+| ------ | -------- | ----------- |
+| `type` | `valkey` | With a version after the colon: `7.2`, `8.0`, `8.1`, `9.0` or `9.1`. The default is `9.1`. |
 
 Apps that talk to Redis work unchanged. In Laravel, for example, set
 `REDIS_HOST=cache`.
 
+<a name="compose"></a>
 ### Compose
 
 Serves a service from your own compose files, listed under `compose`. Flight
-adds the `flight` network and Traefik labels to the service and leaves the rest
-to your files. See [A Docker Compose project](#a-docker-compose-project).
+adds the `flight` network and Traefik labels to the service, and leaves the
+rest to your files. See [Docker Compose Projects](#docker-compose-projects).
 
 ```yaml
 app:
@@ -688,28 +810,34 @@ app:
   origin: https://app:8443
 ```
 
-| Option      | Default | What it is |
-| ----------- | ------- | ---------- |
+| Option      | Default | Description |
+| ----------- | ------- | ----------- |
 | `origin`    |         | The URL the proxy connects to: the service name and container port. Use `https://` when the container serves HTTPS itself; its self-signed certificate is accepted. |
 | `hostnames` | none    | Extra addresses, see [Hostnames](#hostnames) |
 
+<a name="traefik"></a>
 ### Traefik
 
-The proxy in the Flight stack. You don't add it to a project; it is configured
+The proxy in the Flight stack. You don't add it to a project; it's configured
 in the [global configuration](#global-configuration). Its dashboard is at
 `https://traefik.flght.dev`.
 
-| Option          | Default                | What it is                         |
-| --------------- | ---------------------- | ---------------------------------- |
-| `http_port`     | `80`                   | The port on your machine for HTTP  |
+| Option          | Default                | Description |
+| --------------- | ---------------------- | ----------- |
+| `http_port`     | `80`                   | The port on your machine for HTTP |
 | `https_port`    | `443`                  | The port on your machine for HTTPS |
-| `docker_socket` | `/var/run/docker.sock` | The Docker socket Traefik watches  |
+| `docker_socket` | `/var/run/docker.sock` | The Docker socket Traefik watches |
 
-## Global configuration
+<a name="global-configuration"></a>
+## Global Configuration
 
-Settings that apply to all projects live in `~/.config/flight/config.yaml`.
-`config.yml` works too; when both exist, Flight uses `config.yaml`. Open it
-with `flight stack:config`, and run `flight stack:restart` after changing it.
+Settings that apply to all projects live in `~/.config/flight/config.yaml`. A
+`config.yml` file works too; when both exist, Flight uses `config.yaml`. To
+open it in your editor, run:
+
+```shell
+flight stack:config
+```
 
 ```yaml
 domain: flght.dev
@@ -720,33 +848,45 @@ services:
     http_port: 8080
 ```
 
-| Key        | Default     | What it is                                      |
-| ---------- | ----------- | ----------------------------------------------- |
-| `domain`   | `flght.dev` | The domain your projects are served under       |
-| `network`  | `flight`    | The Docker network projects join                |
+| Key        | Default     | Description |
+| ---------- | ----------- | ----------- |
+| `domain`   | `flght.dev` | The domain your projects are served under |
+| `network`  | `flight`    | The Docker network projects join |
 | `services` |             | Options for the Flight stack's services, such as [Traefik](#traefik) |
-| `compose`  |             | Your own compose files, run after Flight's, see [Adding services to the Flight stack](#adding-services-to-the-flight-stack) |
+| `compose`  |             | Your own compose files, run after Flight's, see [Adding Services to the Flight Stack](#adding-services-to-the-flight-stack) |
+
+After changing it, restart the Flight stack:
+
+```shell
+flight stack:restart
+```
 
 Every `*.<domain>` address must point to `127.0.0.1`. After changing `domain`,
-run `flight stack:secure` to create a matching certificate.
+create a matching certificate:
 
-The folder holds your own files, and a `.flight` folder with what Flight
-generates, just like a project:
+```shell
+flight stack:secure
+```
 
-| Path                    | What it is                                         |
-| ----------------------- | -------------------------------------------------- |
-| `config.yaml`           | The settings above                                 |
-| `.env`                  | [Secrets](#secrets) for all your projects          |
-| `traefik/`              | Your own Traefik configuration files, loaded automatically |
-| `.flight/compose.yaml`  | The generated Compose file; don't edit it          |
-| `.flight/certs/`        | The certificate; managed by Flight                 |
-| `.flight/share/`        | The files the `flight share` image is built from   |
+The Flight stack is also started, stopped and recreated by the `stack:up`,
+`stack:down` and `stack:restart` commands. The directory holds your own files,
+and a `.flight` directory with what Flight generates, just like a project:
 
-### Adding services to the Flight stack
+| Path                   | Description |
+| ---------------------- | ----------- |
+| `config.yaml`          | The settings above |
+| `.env`                 | [Secrets](#secrets) for all your projects |
+| `traefik/`             | Your own Traefik configuration files, loaded automatically |
+| `.flight/compose.yaml` | The generated Compose file; don't edit it |
+| `.flight/certs/`       | The certificate, managed by Flight |
+| `.flight/share/`       | The files the `flight share` image is built from |
+
+<a name="adding-services-to-the-flight-stack"></a>
+### Adding Services to the Flight Stack
 
 Services in your own compose files start and stop with the Flight stack, as
-[compose files](#compose-files) do for a project. List them under `compose`
-in `config.yaml`, with paths relative to `~/.config/flight`. This adds
+[compose files](#compose-files) do for a project. List them under `compose` in
+`config.yaml`, with paths relative to `~/.config/flight`. For example, to add
 [Mailpit](https://mailpit.axllent.org) at `https://mail.flght.dev`:
 
 ```yaml
@@ -767,15 +907,17 @@ services:
     image: axllent/mailpit
 ```
 
-In these files you can use `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`,
-`FLIGHT_HTTP_PORT`, `FLIGHT_HTTPS_PORT` and `FLIGHT_DOCKER_SOCK`.
+In these files, you may use the `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`,
+`FLIGHT_HTTP_PORT`, `FLIGHT_HTTPS_PORT` and `FLIGHT_DOCKER_SOCK` variables.
 
-### Custom Traefik configuration
+<a name="custom-traefik-configuration"></a>
+### Custom Traefik Configuration
 
 Any `.yaml` or `.yml` file in `~/.config/flight/traefik` is loaded by Traefik
-right away, without a restart. Use it for middlewares, or to route to
+right away, without a restart. You may use it for middlewares, or to route to
 something outside Docker.
 
+<a name="troubleshooting"></a>
 ## Troubleshooting
 
 **Something doesn't start.** Run the command again with `-v` to see Docker's
@@ -786,7 +928,8 @@ first start, so it picks up mkcert's certificate authority. If that doesn't
 help, run `flight stack:secure`.
 
 **Port 80 or 443 is already in use.** Another program is using it. Stop that
-program, or pick other ports in the [global configuration](#global-configuration):
+program, or pick other ports in the
+[global configuration](#global-configuration):
 
 ```yaml
 services:
@@ -800,38 +943,46 @@ before starting anything. The error names the exact setting, such as
 `app.type`, and what it expects.
 
 **You want to try something without touching your setup.** Point Flight at
-another configuration folder: `FLIGHT_CONFIG_DIR=/tmp/flight-test flight stack:up`.
+another configuration directory:
 
-## Development
+```shell
+FLIGHT_CONFIG_DIR=/tmp/flight-test flight stack:up
+```
 
-```bash
+<a name="contributing"></a>
+## Contributing
+
+To work on Flight, clone the repository and install its dependencies. The
+`./flight` script runs straight from the checkout:
+
+```shell
 git clone git@github.com:sitepilot/flight.git
 cd flight
 composer install
 ./flight stack:up
 ```
 
-`./flight` runs straight from the checkout.
+Run the tests with Pest, and format the code with Pint:
 
-```bash
-composer test   # run the tests with Pest
-composer lint   # format the code with Pint
+```shell
+composer test
+composer lint
 ```
 
-To build a binary:
+To build a binary, run:
 
-```bash
+```shell
 php flight app:build flight --build-version=1.0.0
 ```
 
-`flight self-update` only works for a downloaded release. In a checkout, pull
-the repository instead.
+The `self-update` command only works for a downloaded release. In a checkout,
+pull the repository instead.
 
-### Releasing
+To release a new version, publish a release on GitHub with a tag such as
+`v1.0.0`. The `Release` workflow builds the binary and attaches it to the
+release.
 
-Publish a release on GitHub with a tag such as `v1.0.0`. The `Release`
-workflow builds the binary and attaches it to the release.
-
+<a name="license"></a>
 ## License
 
 Flight is open-source software licensed under the [MIT license](LICENSE.md).

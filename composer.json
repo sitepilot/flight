@@ -1,6 +1,6 @@
 {
     "name": "sitepilot/flight",
-    "description": "A fast, effortless HTTPS development environment for your Docker projects.",
+    "description": "Local development environments on Docker, with trusted HTTPS for every project.",
     "keywords": [
         "cli",
         "docker",
