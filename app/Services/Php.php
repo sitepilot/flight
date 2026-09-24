@@ -129,6 +129,8 @@ class Php extends Service
                 // Serve HTTPS, so apps see an HTTPS request without having to
                 // trust the proxy's forwarded headers.
                 'SSL_MODE' => 'full',
+                // Keep the logs to what the app writes.
+                'SHOW_WELCOME_MESSAGE' => 'false',
                 ...$this->logEnvironment(),
             ],
             'labels' => $this->route(8443, 'https'),
@@ -151,9 +153,6 @@ class Php extends Service
         # change {$this->path} in {$file} instead.
 
         FROM {$this->image()}
-
-        # Keep the logs to what the app writes.
-        ENV SHOW_WELCOME_MESSAGE=false
 
         USER root
 

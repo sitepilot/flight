@@ -45,7 +45,7 @@ it('runs a php app, built from serversideup/php', function () {
         ->and($app['volumes'])->toBe(['.:/var/www/html'])
         ->and($app['networks'])->toBe(['default', 'flight'])
         // Served over HTTPS, so apps see an HTTPS request.
-        ->and($app['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'full', 'NGINX_ACCESS_LOG' => '/dev/null'])
+        ->and($app['environment'])->toBe(['NGINX_WEBROOT' => '/var/www/html/public', 'SSL_MODE' => 'full', 'SHOW_WELCOME_MESSAGE' => 'false', 'NGINX_ACCESS_LOG' => '/dev/null'])
         ->and($app['labels'])->toBe([
             'traefik.enable' => 'true',
             'traefik.http.routers.flight-myapp-app.rule' => 'Host(`myapp.flght.dev`)',
