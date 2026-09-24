@@ -15,18 +15,13 @@ class Certificate
 {
     public function __construct(protected GlobalConfig $config) {}
 
-    /**
-     * The name the certificate covers, e.g. "*.flght.dev".
-     */
     public function wildcard(): string
     {
         return '*.'.$this->config->domain();
     }
 
     /**
-     * Issue a certificate when it is missing or doesn't match the domain.
-     *
-     * @return bool whether a new certificate was issued
+     * Returns whether a new certificate was issued.
      */
     public function ensure(): bool
     {
@@ -74,9 +69,6 @@ class Certificate
         }
     }
 
-    /**
-     * Whether the certificate on disk covers *.$domain and hasn't expired.
-     */
     public function isValidFor(string $domain): bool
     {
         if (! is_file($this->config->certificateFile()) || ! is_file($this->config->keyFile())) {
@@ -114,8 +106,8 @@ class Certificate
     }
 
     /**
-     * Under WSL, use the Windows binary so the root CA is added to the
-     * Windows trust store.
+     * Under WSL, the Windows binary adds the root CA to the Windows trust
+     * store.
      */
     public function binary(): string
     {

@@ -35,9 +35,6 @@ class Context
         return $this->global->domain();
     }
 
-    /**
-     * Where the project is served, e.g. "https://myapp.flght.dev".
-     */
     public function url(): string
     {
         foreach ($this->stack->services() as $service) {

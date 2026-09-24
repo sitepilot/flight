@@ -8,20 +8,15 @@ use App\Exceptions\FlightException;
 use Illuminate\Support\Facades\Process;
 use Symfony\Component\Process\Process as SymfonyProcess;
 
-/**
- * Opens a file in the user's editor.
- */
 class Editor
 {
     /**
-     * Tried in order when neither VISUAL nor EDITOR is set.
+     * The editors tried in order when neither VISUAL nor EDITOR is set.
      */
     protected const array FALLBACKS = ['nano', 'vim', 'vi'];
 
     /**
-     * The editor command, which may include arguments such as "code --wait".
-     *
-     * @return array<int, string>
+     * May include arguments, such as "code --wait".
      */
     public function command(): array
     {

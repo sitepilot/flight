@@ -8,8 +8,8 @@ use App\Support\GlobalConfig;
 use Illuminate\Contracts\Container\Container;
 
 /**
- * The shared services every project uses, such as the Traefik proxy. Lives
- * in ~/.config/flight.
+ * The shared services every project uses, such as the Traefik proxy. Lives in
+ * ~/.config/flight.
  */
 class GlobalStack extends Stack
 {

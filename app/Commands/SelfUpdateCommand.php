@@ -41,10 +41,6 @@ class SelfUpdateCommand extends FlightCommand
         return self::SUCCESS;
     }
 
-    /**
-     * Name the two failures worth explaining: not on Packagist yet, and
-     * Packagist unreachable.
-     */
     protected function explain(Throwable $e): string
     {
         $message = $e->getMessage();

@@ -18,7 +18,7 @@ class PhpService extends Service implements Routed
     public const array VERSIONS = ['8.1', '8.2', '8.3', '8.4', '8.5'];
 
     /**
-     * Each server variation and the variable that sets its document root.
+     * The server variations, with the variable that sets their document root.
      */
     public const array SERVERS = [
         'fpm-nginx' => 'NGINX_WEBROOT',
@@ -29,7 +29,7 @@ class PhpService extends Service implements Routed
     protected const string APP_DIR = '/var/www/html';
 
     /**
-     * A path inside the app: no leading slash and no "..".
+     * The pattern of a path inside the app: no leading slash and no "..".
      */
     public const string PATH = '#^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]*$#';
 
@@ -166,9 +166,6 @@ class PhpService extends Service implements Routed
         DOCKERFILE);
     }
 
-    /**
-     * The extensions and tools to add to the image, run as root.
-     */
     protected function installInstructions(): string
     {
         $instructions = [];
@@ -216,8 +213,8 @@ class PhpService extends Service implements Routed
     }
 
     /**
-     * Node from the official image, so any version is available. Both
-     * images are Debian, so the binary runs as is.
+     * Node from the official image, so any version is available. Both images
+     * are Debian, so the binary runs as is.
      */
     protected function nodeInstructions(string $version): string
     {
@@ -232,8 +229,6 @@ class PhpService extends Service implements Routed
     /**
      * Leave out a log line per request, which a page with its assets turns
      * into dozens. Warnings and PHP errors are still logged.
-     *
-     * @return array<string, string>
      */
     protected function logEnvironment(): array
     {
@@ -255,10 +250,8 @@ class PhpService extends Service implements Routed
     }
 
     /**
-     * The project is the app, unless project_path places it inside an app
+     * The project is the app, unless `project_path` places it inside an app
      * kept in .flight/<service>/data, e.g. a module inside a larger app.
-     *
-     * @return array<int, string>
      */
     protected function mounts(): array
     {
@@ -272,9 +265,6 @@ class PhpService extends Service implements Routed
         ];
     }
 
-    /**
-     * Null when the project is the app.
-     */
     protected function projectPath(): ?string
     {
         $path = trim((string) $this->option('project_path'), '/');
@@ -292,9 +282,6 @@ class PhpService extends Service implements Routed
         return $this->appPath((string) $this->option('webroot'));
     }
 
-    /**
-     * A path relative to the app, in the container.
-     */
     protected function appPath(string $path): string
     {
         $path = trim($path, '/');
@@ -303,8 +290,8 @@ class PhpService extends Service implements Routed
     }
 
     /**
-     * When running as root, keep www-data's own ID. Changing it to 0 would
-     * run the web server as root.
+     * When running as root, www-data keeps its own ID, since 0 would run the
+     * web server as root.
      */
     protected function userId(): int
     {

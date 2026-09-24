@@ -90,7 +90,7 @@ class TraefikService extends Service implements Routed
     }
 
     /**
-     * Use the wildcard certificate as Traefik's default certificate.
+     * Make the wildcard certificate Traefik's default.
      */
     public function prepare(): void
     {

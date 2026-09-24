@@ -24,7 +24,7 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
     protected $description = 'Share the project at a temporary public URL';
 
     /**
-     * Output that has not made a whole line yet.
+     * The output that hasn't made a whole line yet.
      */
     protected string $pending = '';
 
@@ -94,8 +94,6 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
     /**
      * Without the pcntl extension, Ctrl+C still reaches the container
      * directly, but Flight can't say it stopped.
-     *
-     * @return array<int, int>
      */
     public function getSubscribedSignals(): array
     {
@@ -103,8 +101,8 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
     }
 
     /**
-     * Once the tunnel is open, stop cloudflared and wait for the container
-     * to stop and remove itself. Before that, exit as usual.
+     * Once the tunnel is open, stop cloudflared and wait for the container to
+     * remove itself. Before that, exit as usual.
      */
     public function handleSignal(int $signal, int|false $previousExitCode = 0): int|false
     {
@@ -118,10 +116,6 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
         return false;
     }
 
-    /**
-     * The service asked for, or else the app. Only a service with a URL of
-     * its own can be shared.
-     */
     protected function sharedService(ProjectStack $stack): Service&Routed
     {
         $name = $this->service($stack, $this->argument('service'));
@@ -157,10 +151,6 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
         $this->line('');
     }
 
-    /**
-     * Show cloudflared's errors and warnings as they arrive, or everything
-     * with -v. Leave out those of shutting down.
-     */
     protected function show(string $buffer): void
     {
         if ($this->stopping && ! $this->output->isVerbose()) {
@@ -179,10 +169,6 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
         }
     }
 
-    /**
-     * Why the tunnel stopped before it had a URL: docker's error, or the
-     * last thing cloudflared logged that was not routine.
-     */
     protected function failure(string $log): FlightException
     {
         if (str_contains($log, 'is already in use')) {

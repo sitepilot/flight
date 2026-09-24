@@ -9,9 +9,6 @@ use App\Services\Service;
 use App\Stacks\GlobalStack;
 use App\Support\Compose;
 
-/**
- * Output shared by the commands that manage the global stack.
- */
 abstract class StackCommand extends FlightCommand
 {
     protected function recreate(GlobalStack $stack, Compose $compose): void

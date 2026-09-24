@@ -7,25 +7,18 @@ namespace App\Commands\Project;
 use App\Commands\FlightCommand;
 use App\Exceptions\FlightException;
 use App\Provisioning\Provisioner;
-use App\Provisioning\Step;
 use App\Stacks\ProjectStack;
 use Closure;
 use Symfony\Component\Console\Output\OutputInterface;
 
-/**
- * Output shared by the commands that manage the project in the current
- * directory.
- */
 abstract class ProjectCommand extends FlightCommand
 {
     /**
-     * The named service, or else the first one: the app, when the project
-     * has one. The project's own compose files can define any service, so
-     * compose checks those names itself.
+     * The project's own compose files can define any service, so compose
+     * checks those names itself.
      */
     protected function service(ProjectStack $stack, ?string $name): string
     {
-        // Workers too, such as "queue".
         $services = array_merge(...array_map(fn ($service): array => $service->composeNames(), $stack->services()));
 
         if ($name === null) {
@@ -42,17 +35,11 @@ abstract class ProjectCommand extends FlightCommand
         return $name;
     }
 
-    /**
-     * Pass the container's output through as it arrives.
-     */
     protected function passthrough(): Closure
     {
         return fn (string $type, string $buffer) => $this->output->write($buffer, false, OutputInterface::OUTPUT_RAW);
     }
 
-    /**
-     * @param  array<int, Step>  $steps
-     */
     protected function provision(Provisioner $provisioner, ProjectStack $stack, array $steps): void
     {
         foreach ($steps as $step) {

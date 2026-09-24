@@ -88,9 +88,6 @@ class WordPressRecipe extends Recipe
         ];
     }
 
-    /**
-     * @param  array<string, string>  $flags
-     */
     protected function command(string $command, array $flags): string
     {
         foreach ($flags as $flag => $value) {

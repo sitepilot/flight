@@ -7,8 +7,8 @@ namespace App\Support;
 use Symfony\Component\Process\ExecutableFinder;
 
 /**
- * Finds a binary on PATH, including Windows binaries such as mkcert.exe
- * under WSL.
+ * Finds a binary on PATH, including Windows binaries such as mkcert.exe under
+ * WSL.
  */
 class Executable
 {

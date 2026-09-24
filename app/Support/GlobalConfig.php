@@ -6,31 +6,21 @@ namespace App\Support;
 
 use Illuminate\Support\Arr;
 
-/**
- * The settings in ~/.config/flight/config.yaml, shared by every project,
- * and the global stack's services. The stack's recipe is set by Flight in
- * config/flight.php.
- */
 class GlobalConfig extends StackConfig
 {
     /**
-     * The names the config file can have. config.yaml wins when the
-     * directory has both.
+     * The names the config file can have; config.yaml wins when both exist.
      */
     public const array FILES = ['config.yaml', 'config.yml'];
 
     /**
-     * Read on demand rather than in the constructor, so a changed
-     * FLIGHT_CONFIG_DIR is always picked up.
+     * Read on demand, so a changed FLIGHT_CONFIG_DIR is always picked up.
      */
     public function directory(): string
     {
         return rtrim((string) config('flight.config_dir'), DIRECTORY_SEPARATOR);
     }
 
-    /**
-     * config.yaml, or config.yml when only that exists, as for flight.yaml.
-     */
     public function file(): string
     {
         foreach (self::FILES as $name) {
@@ -57,9 +47,6 @@ class GlobalConfig extends StackConfig
         return $this->directory().'/traefik';
     }
 
-    /**
-     * The build context of the image `flight share` runs.
-     */
     public function shareDirectory(): string
     {
         return $this->filesDirectory().'/share';
@@ -110,9 +97,6 @@ class GlobalConfig extends StackConfig
         parent::prepare();
     }
 
-    /**
-     * Create the directory, and a config.yaml when there is none.
-     */
     public function scaffold(): void
     {
         Files::ensureDirectory($this->directory());
@@ -127,17 +111,11 @@ class GlobalConfig extends StackConfig
         return config('flight.recipe');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     protected function defaults(): array
     {
         return (array) config('flight.defaults');
     }
 
-    /**
-     * A removed key falls back to its default.
-     */
     protected function withDefaults(array $settings): array
     {
         return array_replace($this->defaults(), Arr::whereNotNull($settings));

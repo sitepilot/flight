@@ -8,15 +8,11 @@ use App\Stacks\Stack;
 use App\Support\GlobalConfig;
 
 /**
- * A service from the project's own compose files, set under `compose`,
- * served by the proxy. Flight only adds the proxy's labels and network to
- * it; the compose files define everything else.
+ * A service from the compose files listed under `compose`, served by the
+ * proxy. Flight only adds the proxy's labels and network to it.
  */
 class ComposeService extends Service implements Routed
 {
-    /**
-     * @param  array<string, mixed>  $options
-     */
     public function __construct(
         Stack $stack,
         GlobalConfig $global,
@@ -63,9 +59,6 @@ class ComposeService extends Service implements Routed
         return $this->option('origin');
     }
 
-    /**
-     * The service the origin names, e.g. "app" for "https://app:8443".
-     */
     public function composeName(): string
     {
         return (string) parse_url($this->origin(), PHP_URL_HOST);

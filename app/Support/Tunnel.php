@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\Process;
  * Shares a service at a temporary https://<words>.trycloudflare.com URL
  * through a Cloudflare quick tunnel, which needs no Cloudflare account.
  *
- * The tunnel runs in a container on the stack's network, from an image
- * Flight builds: cloudflared next to nginx. nginx sends the service its own
- * hostname and puts the public one back in what the service returns, so
- * apps that only know their own URL, such as WordPress, work unchanged.
+ * The tunnel runs in a container on the stack's network, from an image Flight
+ * builds: cloudflared next to nginx. nginx sends the service its own hostname
+ * and puts the public one back in what the service returns, so apps that only
+ * know their own URL, such as WordPress, work unchanged.
  */
 class Tunnel
 {
@@ -30,19 +30,17 @@ class Tunnel
     protected const string NGINX = 'nginx:1.30-alpine';
 
     /**
-     * cloudflared also mentions api.trycloudflare.com when it fails.
+     * The pattern of the public URL, which isn't api.trycloudflare.com,
+     * mentioned when cloudflared fails.
      */
     protected const string URL = '#https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com#';
 
-    /**
-     * Cloudflare's DNS over HTTPS, in JSON.
-     */
     protected const string DNS = 'https://cloudflare-dns.com/dns-query';
 
     public function __construct(protected GlobalConfig $global) {}
 
     /**
-     * Build the image. Docker caches it, so only the first build takes time.
+     * Docker caches the image, so only the first build takes time.
      */
     public function build(?Closure $output = null): void
     {
@@ -60,8 +58,8 @@ class Tunnel
     }
 
     /**
-     * Start the tunnel to a service, until it is stopped. With $rewrite,
-     * the service sees its own hostname instead of the public one.
+     * With $rewrite, the service sees its own hostname instead of the public
+     * one.
      */
     public function start(Stack $stack, Service&Routed $service, bool $rewrite, Closure $output): InvokedProcess
     {
@@ -76,18 +74,14 @@ class Tunnel
         ], $output);
     }
 
-    /**
-     * The public URL, once cloudflared has logged it.
-     */
     public static function url(string $log): ?string
     {
         return preg_match(self::URL, $log, $match) ? $match[0] : null;
     }
 
     /**
-     * Whether the URL's hostname is in DNS yet, a few seconds after
-     * cloudflared logs it. Asked of Cloudflare directly: a local resolver
-     * asked too early remembers for a while that the hostname doesn't exist.
+     * Asked of Cloudflare directly: a local resolver asked too early
+     * remembers for a while that the hostname doesn't exist.
      */
     public function resolves(string $url): bool
     {
@@ -124,8 +118,8 @@ class Tunnel
     }
 
     /**
-     * cloudflared runs in the foreground, so stopping it stops the
-     * container, nginx included.
+     * cloudflared runs in the foreground, so stopping it stops the container,
+     * nginx included.
      */
     protected function entrypoint(): string
     {
@@ -149,8 +143,8 @@ class Tunnel
     }
 
     /**
-     * Only the variables set on the container are filled in, so nginx's
-     * own, such as $host, are left alone. $host is the public hostname.
+     * Only the variables set on the container are filled in, so nginx's own,
+     * such as $host, the public hostname, are left alone.
      */
     protected function nginxConfig(): string
     {

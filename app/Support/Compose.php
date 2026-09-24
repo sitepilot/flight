@@ -12,16 +12,13 @@ use Illuminate\Support\Facades\Process;
 use Symfony\Component\Process\Process as SymfonyProcess;
 
 /**
- * Runs docker compose for a stack, writing its compose file first so it is
+ * Runs docker compose for a stack, writing its compose file first so it's
  * never stale.
  */
 class Compose
 {
     public function __construct(protected Scaffold $scaffold) {}
 
-    /**
-     * Hints for common failures, keyed by text that appears in stderr.
-     */
     protected const array HINTS = [
         'Cannot connect to the Docker daemon' => 'Docker is installed but not running. Start Docker Desktop, or run: sudo systemctl start docker',
         'is not a docker command' => 'The Docker Compose plugin is missing. Install it from https://docs.docker.com/compose/install/',
@@ -40,7 +37,7 @@ class Compose
     }
 
     /**
-     * Stop the stack and remove its volumes, such as a database's data.
+     * Also removes the volumes, such as a database's data.
      */
     public function destroy(Stack $stack, ?Closure $output = null): void
     {
@@ -52,9 +49,6 @@ class Compose
         $this->run($stack, ['up', '-d', '--remove-orphans', '--force-recreate'], $output);
     }
 
-    /**
-     * @param  array<int, string>  $arguments
-     */
     public function run(Stack $stack, array $arguments, ?Closure $output = null): ProcessResult
     {
         $this->ensureInstalled();
@@ -71,13 +65,9 @@ class Compose
     }
 
     /**
-     * Run a shell command in a running service. Returns the result instead
-     * of throwing, since a failing check is not an error.
-     *
-     * Only the names of $env are on the command line; compose reads their
-     * values from its environment, so secrets don't show up in `ps`.
-     *
-     * @param  array<string, string>  $env
+     * Returns the result rather than throwing, since a failing check is not
+     * an error. Only the names of $env are on the command line; compose reads
+     * their values from its environment, so secrets don't show in `ps`.
      */
     public function exec(Stack $stack, string $service, string $command, ?Closure $output = null, array $env = []): ProcessResult
     {
@@ -87,20 +77,13 @@ class Compose
     }
 
     /**
-     * Run a command in a running service for the user, attached to the
-     * terminal when there is one, so shells and prompts work. The result
-     * carries the command's own exit code.
-     *
-     * @param  array<int, string>  $command
+     * Attached to the terminal when there is one, so shells and prompts work.
      */
     public function attach(Stack $stack, string $service, array $command, ?Closure $output = null): ProcessResult
     {
         return $this->stream($stack, ['exec', ...($this->hasTty() ? [] : ['-T']), $service, ...$command], $output);
     }
 
-    /**
-     * Show a service's logs, following new ones when $follow is set.
-     */
     public function logs(Stack $stack, string $service, bool $follow = false, ?string $tail = null, ?Closure $output = null): ProcessResult
     {
         return $this->stream($stack, [
@@ -111,13 +94,6 @@ class Compose
         ], $output);
     }
 
-    /**
-     * The running compose projects and their files, such as
-     * ["myapp" => ["/home/me/myapp/compose.yml"]]. Empty when compose can't
-     * say, since this only informs.
-     *
-     * @return array<string, array<int, string>>
-     */
     public function projects(): array
     {
         $result = Process::run(['docker', 'compose', 'ls', '--format', 'json']);
@@ -131,12 +107,6 @@ class Compose
         return $projects;
     }
 
-    /**
-     * Run compose for the user without a time limit, attached to the
-     * terminal when there is one, and otherwise pass its output to $output.
-     *
-     * @param  array<int, string>  $arguments
-     */
     protected function stream(Stack $stack, array $arguments, ?Closure $output = null): ProcessResult
     {
         $this->ensureInstalled();
@@ -154,10 +124,6 @@ class Compose
         return SymfonyProcess::isTtySupported();
     }
 
-    /**
-     * @param  array<int, string>  $arguments
-     * @param  array<string, string>  $env
-     */
     protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300, array $env = []): ProcessResult
     {
         return Process::env([...$stack->environment(), ...$env])
@@ -166,11 +132,8 @@ class Compose
     }
 
     /**
-     * Always pass the project name, so COMPOSE_PROJECT_NAME in a stray .env
-     * or a `name:` in the project's own compose files can't rename the
-     * stack.
-     *
-     * @return array<int, string>
+     * The project name is always passed, so COMPOSE_PROJECT_NAME in a .env or
+     * a `name:` in the project's own compose files can't rename the stack.
      */
     protected function command(Stack $stack): array
     {
@@ -189,9 +152,8 @@ class Compose
     }
 
     /**
-     * Only check that the binary is on PATH. Compose already reports a
-     * stopped daemon or a missing plugin clearly, and checking those first
-     * would add about 160ms to every command.
+     * Compose already reports a stopped daemon or a missing plugin clearly,
+     * and checking those first would add about 160ms to every command.
      */
     protected function ensureInstalled(): void
     {
@@ -203,9 +165,6 @@ class Compose
         }
     }
 
-    /**
-     * Replace docker's stderr with a hint when we recognize it.
-     */
     protected function explain(ProcessResult $result, string $message): FlightException
     {
         $stderr = $result->errorOutput();

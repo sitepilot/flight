@@ -11,12 +11,11 @@ use Dotenv\Exception\ExceptionInterface;
 use Illuminate\Support\Str;
 
 /**
- * Variables that are not committed, such as license keys. Looked up in the
- * shell, then the project's .flight/.env, then ~/.config/flight/.env.
+ * Variables that aren't committed, such as license keys. They're looked up in
+ * the shell, then the project's .flight/.env, then ~/.config/flight/.env.
  */
 class Variables
 {
-    /** @var array<string, array<string, string|null>> */
     protected array $files = [];
 
     public function __construct(protected GlobalConfig $global) {}
@@ -41,10 +40,8 @@ class Variables
     }
 
     /**
-     * The values of the variables a step lists, by name. A variable that is
-     * set nowhere is an error, reported before anything starts.
-     *
-     * @return array<string, string>
+     * A variable that's set nowhere is an error, reported before anything
+     * starts.
      */
     public function forStep(StackConfig $config, Step $step): array
     {
@@ -58,9 +55,6 @@ class Variables
         return $values;
     }
 
-    /**
-     * Where to set a variable, for messages.
-     */
     public function hint(StackConfig $config): string
     {
         $files = array_map(
@@ -71,9 +65,6 @@ class Variables
         return 'Set it in '.implode(', in ', array_unique($files)).', or in your shell.';
     }
 
-    /**
-     * @return array<int, string>
-     */
     protected function sources(StackConfig $config): array
     {
         return [
@@ -82,9 +73,6 @@ class Variables
         ];
     }
 
-    /**
-     * @return array<string, string|null>
-     */
     protected function read(string $file): array
     {
         if (! is_file($file)) {

@@ -9,36 +9,26 @@ use App\Support\GlobalConfig;
 use App\Support\HasOptions;
 
 /**
- * One service in a stack's compose file, built from its options in
- * config.yaml or flight.yaml. The options are validated when the service is
+ * A service in a stack's compose file. Its options are validated when it's
  * built, so mistakes are reported before anything is written or started.
- *
- * A service that is Routed is served over HTTPS. A service that declares a
- * `workers` option runs them next to it, on its image.
  */
 abstract class Service
 {
     use HasOptions;
 
     /**
-     * A single DNS label, since the wildcard certificate covers only one
-     * level under the domain.
+     * A single DNS label, since the wildcard certificate covers one level
+     * under the domain.
      */
     public const string LABEL = '/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/';
 
     /**
-     * Where it is set in the config, e.g. "app" or "services.db".
+     * Where it's set in the config, e.g. "app" or "services.db".
      */
     protected string $path;
 
-    /**
-     * Its type, e.g. "mariadb".
-     */
     protected string $type;
 
-    /**
-     * @param  array<string, mixed>  $options
-     */
     public function __construct(
         protected Stack $stack,
         protected GlobalConfig $global,
@@ -65,7 +55,6 @@ abstract class Service
             );
         }
 
-        // The version comes from the type, e.g. `type: mariadb:11.8`.
         $this->configure($stack->config(), $this->path, $options, ['version' => 'type']);
 
         if ($this->workers() !== [] && array_is_list($this->workers())) {
@@ -79,51 +68,27 @@ abstract class Service
         }
     }
 
-    /**
-     * The services.<name> fragment of the compose file. The stack adds its
-     * networks unless the fragment sets its own.
-     *
-     * @return array<string, mixed>
-     */
     abstract public function definition(): array;
 
     /**
-     * Commands by worker name: background processes, such as a queue
-     * worker, on the service's image with its mounts and environment, each
-     * in a container of its own. Only for a service that declares `workers`.
-     *
-     * @return array<string, string>
+     * Commands by worker name. Workers run on the service's image, with its
+     * mounts and environment, each in a container of its own.
      */
     public function workers(): array
     {
         return $this->options['workers'] ?? [];
     }
 
-    /**
-     * The service's name in the compose file, e.g. "app".
-     */
     public function composeName(): string
     {
         return $this->name;
     }
 
-    /**
-     * The names of this service's compose services, e.g. "app", "queue".
-     *
-     * @return array<int, string>
-     */
     public function composeNames(): array
     {
         return [$this->composeName(), ...array_keys($this->workers())];
     }
 
-    /**
-     * The compose services for this service and its workers, by name. A
-     * worker goes by its own name, e.g. "queue"; the stack checks that no
-     * two names in the project are the same.
-     *
-     * @return array<string, array<string, mixed>>
-     */
     public function composeServices(): array
     {
         $definition = $this->definition();
@@ -147,12 +112,8 @@ abstract class Service
     }
 
     /**
-     * The service's own definition, with its command instead and without
-     * what belongs to the service alone: its build, ports, addresses and
-     * its healthcheck, which checks what the service runs.
-     *
-     * @param  array<string, mixed>  $definition
-     * @return array<string, mixed>
+     * The service's definition, running the worker's command. Its build,
+     * ports, labels and healthcheck belong to the service alone.
      */
     protected function workerDefinition(array $definition, string $command): array
     {
@@ -170,9 +131,6 @@ abstract class Service
         ];
     }
 
-    /**
-     * E.g. "flight-myapp-app".
-     */
     protected function workerImage(): string
     {
         return $this->stack->name().'-'.$this->name;
@@ -183,12 +141,6 @@ abstract class Service
         return $this->name;
     }
 
-    /**
-     * The hostnames this service is served at. Only a Routed service gets a
-     * label from the stack.
-     *
-     * @return array<int, string>
-     */
     public function hostnames(): array
     {
         if ($this->label === null) {
@@ -201,20 +153,13 @@ abstract class Service
         );
     }
 
-    /**
-     * Top-level volumes this service needs.
-     *
-     * @return array<string, mixed>
-     */
     public function volumes(): array
     {
         return [];
     }
 
     /**
-     * Variables passed to compose, so override files can use them.
-     *
-     * @return array<string, string>
+     * Variables compose files can use.
      */
     public function environment(): array
     {
@@ -222,42 +167,28 @@ abstract class Service
     }
 
     /**
-     * What the service is, for the summary of a service without an address,
-     * e.g. "MariaDB 11.8 at mariadb:3306".
+     * For the summary, e.g. "MariaDB 11.8 at mariadb:3306".
      */
     public function description(): string
     {
         return '';
     }
 
-    /**
-     * Rows for the summary shown once the stack runs.
-     *
-     * @return array<int, array{0: string, 1: string}>
-     */
     public function summary(): array
     {
         return [];
     }
 
-    /**
-     * Write any files this service needs before compose runs.
-     */
     public function prepare(): void {}
 
-    /**
-     * A folder of this service in the stack's files directory, for writing
-     * files: "build" for files Flight generates, "data" for what the service
-     * keeps.
-     */
     protected function directory(string $name): string
     {
         return $this->stack->filesDirectory().'/'.$this->name.'/'.$name;
     }
 
     /**
-     * The same folder as compose reads it, e.g. "./.flight/app/build", or
-     * the project itself without a name: ".".
+     * As compose reads it, e.g. "./.flight/app/build", or "." for the
+     * project.
      */
     protected function composePath(?string $name = null): string
     {
@@ -265,8 +196,8 @@ abstract class Service
     }
 
     /**
-     * Relative to the compose project directory, so "./.." and the like
-     * when the project's compose files are in a subfolder.
+     * Relative to the compose project directory, which is a subfolder when
+     * the project's compose files are in one.
      */
     private function relativePath(string $path): string
     {
@@ -283,9 +214,6 @@ abstract class Service
         return $parts === [] ? '.' : './'.implode('/', $parts);
     }
 
-    /**
-     * @return array<string, string>
-     */
     protected function allMessages(): array
     {
         return [

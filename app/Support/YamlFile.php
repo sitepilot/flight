@@ -6,15 +6,8 @@ namespace App\Support;
 
 use Symfony\Component\Yaml\Yaml;
 
-/**
- * Writes a generated YAML file with a "do not edit" header.
- */
 class YamlFile
 {
-    /**
-     * @param  array<string, mixed>  $data
-     * @param  string  $note  what the reader should edit instead of this file, on one or more lines
-     */
     public static function write(string $path, array $data, string $note): void
     {
         $comment = implode("\n", array_map(fn (string $line): string => rtrim('# '.$line), explode("\n", $note)));

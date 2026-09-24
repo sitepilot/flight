@@ -30,8 +30,8 @@ class ReleaseAssetStrategy extends GithubStrategy implements StrategyInterface
     /**
      * Drop the "v" from tags like "v1.0.1". The updater compares versions as
      * strings, so "v1.0.1" would never equal the built "1.0.1" and every
-     * check would download the same binary again. The download URL still
-     * uses the original tag.
+     * check would download the same binary again. The download URL still uses
+     * the original tag.
      */
     public function getCurrentRemoteVersion(Updater $updater)
     {

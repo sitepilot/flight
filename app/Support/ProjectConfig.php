@@ -9,27 +9,23 @@ use App\Provisioning\Step;
 use App\Services\PhpService;
 use Illuminate\Support\Str;
 
-/**
- * The settings in a project's flight.yaml or flight.yml.
- */
 class ProjectConfig extends StackConfig
 {
     /**
-     * The names a project file can have. flight.yaml wins when a directory
-     * has both.
+     * The names the project file can have; flight.yaml wins when both exist.
      */
     public const array FILES = ['flight.yaml', 'flight.yml'];
 
     /**
-     * Files in .flight that belong to the user and survive `flight destroy`.
+     * The user's files in .flight, which survive `flight destroy`.
      */
     public const array USER_FILES = ['.env'];
 
     protected ?string $file = null;
 
     /**
-     * Found by searching up from the current directory, so commands work
-     * anywhere inside the project.
+     * Searched for up from the current directory, so commands work anywhere
+     * inside the project.
      */
     public function file(): string
     {
@@ -59,17 +55,11 @@ class ProjectConfig extends StackConfig
         }
     }
 
-    /**
-     * The directory containing the project file.
-     */
     public function root(): string
     {
         return dirname($this->file());
     }
 
-    /**
-     * The project root, so `.` in a volume is the project root.
-     */
     public function directory(): string
     {
         return $this->root();
@@ -90,11 +80,7 @@ class ProjectConfig extends StackConfig
     }
 
     /**
-     * Remove everything Flight wrote to .flight, such as the services' data.
-     * The user's own files are kept, together with the .gitignore that keeps
-     * them out of git.
-     *
-     * @return array<int, string> the user files that were kept
+     * Returns the user's files that were kept.
      */
     public function removeFiles(): array
     {
@@ -132,20 +118,15 @@ class ProjectConfig extends StackConfig
     }
 
     /**
-     * The app is served at <project>.<domain>, any other routed service
-     * at <project>-<service>.<domain>. Both are one level under the domain,
-     * which is all the wildcard certificate covers.
+     * The app is served at <project>.<domain>, any other service at
+     * <project>-<service>.<domain>: one level under the domain, which is all
+     * the wildcard certificate covers.
      */
     public function label(string $service): string
     {
         return $service === self::APP ? $this->name() : $this->name().'-'.$service;
     }
 
-    /**
-     * The steps listed under `provision`.
-     *
-     * @return array<int, Step>
-     */
     public function provision(): array
     {
         return array_map(Step::fromArray(...), $this->load()['provision'] ?? []);

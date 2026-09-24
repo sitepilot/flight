@@ -14,8 +14,8 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Process\ProcessResult;
 
 /**
- * Runs a project's provisioning steps in its containers: the recipe's
- * first, then those in flight.yaml.
+ * Runs a project's provisioning steps in its containers: the recipe's first,
+ * then those in flight.yaml.
  */
 class Provisioner
 {
@@ -27,8 +27,6 @@ class Provisioner
 
     /**
      * Checked here, so a mistake is reported before anything is started.
-     *
-     * @return array<int, Step>
      */
     public function steps(ProjectStack $stack): array
     {
@@ -39,15 +37,13 @@ class Provisioner
             ...$project->provision(),
         ];
 
-        // By their compose names, which for a service from the project's own
-        // compose files can differ from Flight's. Those files can define any
-        // service, so compose checks those names itself.
+        // The project's own compose files can define any service, so compose
+        // checks those names itself.
         $services = array_merge(...array_map(fn ($service): array => $service->composeNames(), $stack->services()));
         $known = fn (?string $service): bool => in_array($service, $services, true) || ($service !== null && $project->ownComposeFiles() !== []);
         $app = $stack->service(StackConfig::APP)?->composeName();
 
         foreach ($steps as $step) {
-            // Steps run in the app unless they name another service.
             if ($step->service === null && $app !== null) {
                 $step->service = $app;
             }
@@ -65,11 +61,6 @@ class Provisioner
         return $steps;
     }
 
-    /**
-     * Run a step unless its check says it is done.
-     *
-     * @return bool whether the step ran
-     */
     public function run(ProjectStack $stack, Step $step, ?Closure $output = null): bool
     {
         if ($step->unless !== null && $this->exec($stack, $step, $step->unless)->successful()) {
@@ -92,10 +83,6 @@ class Provisioner
         return $this->compose->exec($stack, (string) $step->service, $this->inDirectory($step, $command), $output, $env);
     }
 
-    /**
-     * Relative to the container's working directory, which for PHP is the
-     * app, e.g. "assets".
-     */
     protected function inDirectory(Step $step, string $command): string
     {
         return $step->dir === null ? $command : 'cd '.escapeshellarg($step->dir).' && '.$command;

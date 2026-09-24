@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 /**
- * A MariaDB server with its data in a named volume. Reachable from the
- * other services at its name, e.g. "db".
+ * A MariaDB server with its data in a named volume. Reachable from the other
+ * services at its name, e.g. "db".
  */
 class MariaDBService extends Service
 {

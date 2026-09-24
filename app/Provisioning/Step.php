@@ -6,33 +6,27 @@ namespace App\Provisioning;
 
 /**
  * A shell command run in one of the project's services, e.g.
- * Step::make('Install dependencies')->run('composer install')
- * ->unless('test -d vendor').
+ * `Step::make('Install')->run('composer install')->unless('test -d vendor')`.
  */
 class Step
 {
     /**
-     * The service to run in; null for the app.
+     * The service to run in, or null for the app.
      */
     public ?string $service = null;
 
     public ?string $command = null;
 
     /**
-     * A command that exits 0 once the step is done, so it is skipped.
+     * A command that exits 0 once the step is done, so it's skipped.
      */
     public ?string $unless = null;
 
     /**
-     * Where to run, relative to the container's working directory.
+     * The directory to run in, relative to the container's working directory.
      */
     public ?string $dir = null;
 
-    /**
-     * Variables passed to the command and its check, e.g. a license key.
-     *
-     * @var array<int, string>
-     */
     public array $env = [];
 
     public function __construct(public string $name) {}
@@ -42,9 +36,6 @@ class Step
         return new static($name);
     }
 
-    /**
-     * @param  array{name: string, service?: ?string, run: string, unless?: ?string, dir?: ?string, env?: ?array<int, string>}  $step
-     */
     public static function fromArray(array $step): static
     {
         $instance = static::make($step['name'])->run($step['run']);

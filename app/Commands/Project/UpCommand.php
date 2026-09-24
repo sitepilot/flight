@@ -18,7 +18,6 @@ class UpCommand extends ProjectCommand
 
     public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate, Provisioner $provisioner): int
     {
-        // Report mistakes in flight.yaml before anything is started.
         $stack->validate();
         $steps = $provisioner->steps($stack);
 
@@ -51,8 +50,7 @@ class UpCommand extends ProjectCommand
     }
 
     /**
-     * The project's own compose files may also run under another name, e.g.
-     * after a plain `docker compose up`. Both would claim the same ports.
+     * After a plain `docker compose up`, both would claim the same ports.
      */
     protected function warnAboutOtherProjects(ProjectStack $stack, Compose $compose): void
     {

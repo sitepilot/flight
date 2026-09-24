@@ -8,10 +8,6 @@ use App\Services\Routed;
 use App\Services\Service;
 use App\Stacks\Stack;
 
-/**
- * Writes a stack's compose file from its services. The file is overwritten
- * on every run.
- */
 class Scaffold
 {
     public function write(Stack $stack): void
@@ -45,16 +41,10 @@ class Scaffold
             'name' => $stack->name(),
             'services' => $services,
             'networks' => $stack->networks(),
-            // An empty section is left out.
             'volumes' => $volumes,
         ]), $stack->composeNote());
     }
 
-    /**
-     * Traefik labels that route the service's hostnames to its origin.
-     *
-     * @return array<string, string>
-     */
     protected function labels(Stack $stack, Service&Routed $service): array
     {
         $origin = (array) parse_url($service->origin());

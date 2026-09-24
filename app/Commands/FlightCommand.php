@@ -16,8 +16,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use function Laravel\Prompts\spin;
 
 /**
- * Wraps every command in a heading and renders a FlightException as an
- * error panel instead of a stack trace.
+ * Wraps every command in a heading and renders a FlightException as an error
+ * panel instead of a stack trace.
  *
  * Commands take their dependencies as handle() parameters, not constructor
  * parameters: commands are instantiated during boot, before the application
@@ -26,8 +26,8 @@ use function Laravel\Prompts\spin;
 abstract class FlightCommand extends Command
 {
     /**
-     * Leave out the heading and trailing line, for commands whose output is
-     * the container's, such as `flight exec`.
+     * Indicates if the heading and trailing line are left out, for commands
+     * whose output is the container's, such as `flight exec`.
      */
     protected bool $plain = false;
 
@@ -86,9 +86,6 @@ abstract class FlightCommand extends Command
         $this->line("  <fg=gray>– {$message}</>");
     }
 
-    /**
-     * Run an action behind a spinner, or stream its output with -v.
-     */
     protected function running(string $message, callable $action): mixed
     {
         if ($this->output->isVerbose()) {
@@ -107,13 +104,6 @@ abstract class FlightCommand extends Command
         $this->step($done);
     }
 
-    /**
-     * A panel with the given rows, one row per service, then $after, each
-     * group separated by a blank line.
-     *
-     * @param  array<int, array{0: string, 1: string}>  $before
-     * @param  array<int, array{0: string, 1: string}>  $after
-     */
     protected function summary(string $title, Stack $stack, array $before, array $after): void
     {
         $rows = [...$before, ['', ''], ...$this->serviceRows($stack), ['', ''], ...$after];
@@ -126,13 +116,6 @@ abstract class FlightCommand extends Command
         ), 'cyan');
     }
 
-    /**
-     * A service with an address shows it, one per line. Any other service
-     * shows what it is, in gray, such as "MariaDB 11.8 at mariadb:3306".
-     * Its workers follow, with their commands.
-     *
-     * @return array<int, array{0: string, 1: string}>
-     */
     protected function serviceRows(Stack $stack): array
     {
         $rows = [];
@@ -172,9 +155,7 @@ abstract class FlightCommand extends Command
     }
 
     /**
-     * Drawn by hand because Termwind has no left or right borders.
-     *
-     * @param  array<int, array{0: string, 1: string}>  $rows
+     * Drawn by hand, since Termwind has no left or right borders.
      */
     protected function panel(string $title, array $rows, string $color): void
     {
@@ -207,17 +188,11 @@ abstract class FlightCommand extends Command
         $this->line(sprintf('  <fg=%1$s>╰%2$s╯</>', $color, str_repeat('─', $inner)));
     }
 
-    /**
-     * The width text takes on screen, without its formatting tags.
-     */
     protected function width(string $text): int
     {
         return Helper::width(Helper::removeDecoration($this->output->getFormatter(), $text));
     }
 
-    /**
-     * @return array<int, string>
-     */
     protected function wrap(string $message, int $width): array
     {
         // A trailing space would push the panel's right border out of line.

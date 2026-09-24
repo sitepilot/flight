@@ -23,9 +23,6 @@ class FlightException extends RuntimeException
         return new self($message, $hint);
     }
 
-    /**
-     * Use the failed process's output as the hint, preferring stderr.
-     */
     public static function fromProcess(ProcessResult $result, string $message, string $fallback = ''): self
     {
         return new self(
