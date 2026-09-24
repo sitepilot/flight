@@ -67,6 +67,11 @@ abstract class FlightCommand extends Command
         $this->line("  <fg=green>✓</> {$message}");
     }
 
+    protected function warning(string $message): void
+    {
+        $this->line("  <fg=yellow>!</> {$message}");
+    }
+
     protected function note(string $message): void
     {
         $this->line('');

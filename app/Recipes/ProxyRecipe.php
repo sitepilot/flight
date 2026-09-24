@@ -7,7 +7,7 @@ namespace App\Recipes;
 /**
  * The global stack: the proxy that routes *.<domain> to projects.
  */
-class Proxy extends Recipe
+class ProxyRecipe extends Recipe
 {
     public function services(): array
     {

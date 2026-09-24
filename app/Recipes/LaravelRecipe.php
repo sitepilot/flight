@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Recipes;
 
-class Laravel extends Recipe
+class LaravelRecipe extends Recipe
 {
     /**
      * The workers the options add. Both start a fresh process for every job
@@ -37,7 +37,6 @@ class Laravel extends Recipe
 
         return [
             'type' => 'php',
-            // Laravel is served from public/, whatever the PHP default.
             'webroot' => 'public',
             ...($workers === [] ? [] : ['workers' => $workers]),
         ];

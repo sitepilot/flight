@@ -68,7 +68,7 @@ it('shares the app through a tunnel on the project network', function () {
 it('writes the image for the tunnel to the flight directory', function () {
     $this->artisan('share')->assertExitCode(0);
 
-    $directory = $this->flightDirectory.'/share';
+    $directory = $this->flightDirectory.'/.flight/share';
 
     expect(file_get_contents($directory.'/Dockerfile'))->toContain('FROM nginx:')
         ->toContain('COPY --from=cloudflare/cloudflared:')

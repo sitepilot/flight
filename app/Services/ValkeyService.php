@@ -8,7 +8,7 @@ namespace App\Services;
  * A Valkey server, compatible with Redis, with its data in a named volume.
  * Reachable from the other services at its name, e.g. "cache".
  */
-class Valkey extends Service
+class ValkeyService extends Service
 {
     public const array VERSIONS = ['7.2', '8.0', '8.1', '9.0', '9.1'];
 

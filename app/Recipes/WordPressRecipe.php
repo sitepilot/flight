@@ -6,13 +6,13 @@ namespace App\Recipes;
 
 use App\Provisioning\Context;
 use App\Provisioning\Step;
-use App\Services\MariaDB;
+use App\Services\MariaDBService;
 
 /**
  * WordPress on PHP and MariaDB, downloaded and installed with WP-CLI on the
  * first `flight up`.
  */
-class WordPress extends Recipe
+class WordPressRecipe extends Recipe
 {
     protected function defaults(): array
     {
@@ -40,7 +40,6 @@ class WordPress extends Recipe
             'type' => 'php',
             'webroot' => '.',
             'extensions' => ['mysqli', 'gd', 'exif', 'intl'],
-            // For `wp db export`, `wp db import` and the like.
             'packages' => ['mariadb-client'],
             'wp_cli' => true,
         ];
@@ -60,7 +59,7 @@ class WordPress extends Recipe
 
     public function provision(Context $context): array
     {
-        /** @var MariaDB $database */
+        /** @var MariaDBService $database */
         $database = $context->service('mariadb');
 
         return [

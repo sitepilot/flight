@@ -9,6 +9,7 @@ use App\Services\Service;
 use App\Support\GlobalConfig;
 use App\Support\StackConfig;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Str;
 
 /**
  * A compose project built from a config file's services. Everything that
@@ -39,9 +40,15 @@ abstract class Stack
         return $this->config->stackName();
     }
 
+    /**
+     * The compose project directory: the config's, or the folder of the
+     * first file listed under `compose`, as for `docker compose -f`.
+     */
     public function directory(): string
     {
-        return $this->config->directory();
+        $files = $this->config->ownComposeFiles();
+
+        return $files === [] ? $this->config->directory() : dirname($files[0]);
     }
 
     public function filesDirectory(): string
@@ -54,9 +61,30 @@ abstract class Stack
         return $this->config->composeFile();
     }
 
+    /**
+     * What the generated file tells its reader: what to edit instead, and
+     * the order of the files when there are more.
+     */
     public function composeNote(): string
     {
-        return $this->config->composeNote();
+        $files = $this->composeFiles();
+
+        if (count($files) === 1) {
+            return $this->config->composeNote();
+        }
+
+        $order = array_map(
+            fn (string $file, int $i): string => '  '.($i + 1).'. '.Str::after($file, $this->config->directory().'/').($i === 0 ? ' (this file)' : ''),
+            $files,
+            array_keys($files),
+        );
+
+        return implode("\n", [
+            $this->config->composeNote(),
+            '',
+            'Flight runs these files in this order; later files can change earlier ones:',
+            ...$order,
+        ]);
     }
 
     public function prepare(): void
@@ -65,17 +93,14 @@ abstract class Stack
     }
 
     /**
-     * The generated file, then the override file when it exists.
+     * The generated file first, then the files listed under `compose`,
+     * which can change what Flight generates.
      *
      * @return array<int, string>
      */
     public function composeFiles(): array
     {
-        $override = $this->config->overrideFile();
-
-        return is_file($override)
-            ? [$this->composeFile(), $override]
-            : [$this->composeFile()];
+        return [$this->composeFile(), ...$this->config->ownComposeFiles()];
     }
 
     /**

@@ -10,7 +10,7 @@ use App\Support\YamlFile;
  * The reverse proxy. Terminates TLS for *.<domain> and routes to containers
  * on the shared network. Its dashboard is served at traefik.<domain>.
  */
-class Traefik extends Service implements Routed
+class TraefikService extends Service implements Routed
 {
     protected function defaults(): array
     {

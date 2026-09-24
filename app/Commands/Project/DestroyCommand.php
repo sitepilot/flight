@@ -17,8 +17,12 @@ class DestroyCommand extends ProjectCommand
     {
         $project = $stack->project();
 
+        $lost = $project->ownComposeFiles() === []
+            ? 'Its database and files in .flight are lost.'
+            : 'The volumes in its compose files, such as a database, and its files in .flight are lost.';
+
         if (! $this->option('force') && ! $this->confirm(
-            "Remove {$project->name()}'s containers, volumes and data? Its database and files in .flight are lost.",
+            "Remove {$project->name()}'s containers, volumes and data? {$lost}",
         )) {
             $this->note('Nothing was removed.');
 

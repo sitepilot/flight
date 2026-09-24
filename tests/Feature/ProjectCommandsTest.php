@@ -26,7 +26,7 @@ it('starts the flight stack and then the project', function () {
     $commands = $this->commands->getArrayCopy();
 
     expect($commands)->toHaveCount(2)
-        ->and($commands[0])->toContain('-p flight -f '.$this->flightDirectory.'/compose.yaml')
+        ->and($commands[0])->toContain('-p flight -f '.$this->flightDirectory.'/.flight/compose.yaml')
         ->and($commands[0])->toEndWith('up -d --wait')
         ->and($commands[1])->toContain('--project-directory '.$this->project.' -p flight-myapp')
         ->and($commands[1])->toContain('-f '.$this->project.'/.flight/compose.yaml')
@@ -56,13 +56,13 @@ it('recreates the project on restart', function () {
         ->toEndWith('up -d --remove-orphans --force-recreate');
 });
 
-it('includes the project override file when it exists', function () {
-    mkdir($this->project.'/.flight');
-    file_put_contents($this->project.'/.flight/compose.override.yaml', "services: {}\n");
+it('runs the compose files listed under compose after its own', function () {
+    file_put_contents($this->project.'/flight.yaml', "app: php\ncompose:\n  - path: compose.override.yml\n    required: false\n");
+    file_put_contents($this->project.'/compose.override.yml', "services:\n  app:\n    ports: ['8080:8080']\n");
 
     $this->artisan('down')->assertExitCode(0);
 
-    expect($this->commands[0])->toContain('-f '.$this->project.'/.flight/compose.override.yaml');
+    expect($this->commands[0])->toContain("-f {$this->project}/.flight/compose.yaml -f {$this->project}/compose.override.yml down");
 });
 
 it('keeps compose away from the application env file', function () {
@@ -138,15 +138,13 @@ it('destroys the project containers and volumes', function () {
 it('removes the data in .flight but keeps the user files', function () {
     mkdir($this->project.'/.flight/app/data', 0755, true);
     file_put_contents($this->project.'/.flight/app/data/index.php', '<?php');
-    file_put_contents($this->project.'/.flight/compose.override.yaml', "services: {}\n");
     file_put_contents($this->project.'/.flight/.env', "TOKEN=secret\n");
 
     $this->withoutMockingConsoleOutput()->artisan('destroy --force');
 
-    expect(Artisan::output())->toContain('Kept your compose.override.yaml and .env in .flight.')
+    expect(Artisan::output())->toContain('Kept your .env in .flight.')
         ->and($this->project.'/.flight/app')->not->toBeDirectory()
         ->and($this->project.'/.flight/compose.yaml')->not->toBeFile()
-        ->and($this->project.'/.flight/compose.override.yaml')->toBeFile()
         ->and($this->project.'/.flight/.env')->toBeFile()
         // Still keeps .env out of git.
         ->and($this->project.'/.flight/.gitignore')->toBeFile();

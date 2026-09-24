@@ -14,6 +14,12 @@ use Illuminate\Support\Arr;
 class GlobalConfig extends StackConfig
 {
     /**
+     * The names the config file can have. config.yaml wins when the
+     * directory has both.
+     */
+    public const array FILES = ['config.yaml', 'config.yml'];
+
+    /**
      * Read on demand rather than in the constructor, so a changed
      * FLIGHT_CONFIG_DIR is always picked up.
      */
@@ -22,14 +28,18 @@ class GlobalConfig extends StackConfig
         return rtrim((string) config('flight.config_dir'), DIRECTORY_SEPARATOR);
     }
 
-    public function filesDirectory(): string
-    {
-        return $this->directory();
-    }
-
+    /**
+     * config.yaml, or config.yml when only that exists, as for flight.yaml.
+     */
     public function file(): string
     {
-        return $this->directory().'/config.yaml';
+        foreach (self::FILES as $name) {
+            if (is_file($this->directory().'/'.$name)) {
+                return $this->directory().'/'.$name;
+            }
+        }
+
+        return $this->directory().'/'.self::FILES[0];
     }
 
     public function stackName(): string
@@ -39,7 +49,7 @@ class GlobalConfig extends StackConfig
 
     public function certsDirectory(): string
     {
-        return $this->directory().'/certs';
+        return $this->filesDirectory().'/certs';
     }
 
     public function traefikDirectory(): string
@@ -52,7 +62,7 @@ class GlobalConfig extends StackConfig
      */
     public function shareDirectory(): string
     {
-        return $this->directory().'/share';
+        return $this->filesDirectory().'/share';
     }
 
     public function certificateFile(): string
@@ -96,6 +106,8 @@ class GlobalConfig extends StackConfig
     public function prepare(): void
     {
         $this->scaffold();
+
+        parent::prepare();
     }
 
     /**
@@ -167,6 +179,11 @@ class GlobalConfig extends StackConfig
         #     http_port: 80
         #     https_port: 443
         #     docker_socket: /var/run/docker.sock
+
+        # Your own compose files, run after Flight's, such as extra services
+        # for every project.
+        # compose:
+        #   - my-services.yaml
 
         YAML;
     }

@@ -112,6 +112,26 @@ class Compose
     }
 
     /**
+     * The running compose projects and their files, such as
+     * ["myapp" => ["/home/me/myapp/compose.yml"]]. Empty when compose can't
+     * say, since this only informs.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function projects(): array
+    {
+        $result = Process::run(['docker', 'compose', 'ls', '--format', 'json']);
+
+        $projects = [];
+
+        foreach ((array) json_decode($result->successful() ? $result->output() : '', true) as $project) {
+            $projects[(string) ($project['Name'] ?? '')] = explode(',', (string) ($project['ConfigFiles'] ?? ''));
+        }
+
+        return $projects;
+    }
+
+    /**
      * Run compose for the user without a time limit, attached to the
      * terminal when there is one, and otherwise pass its output to $output.
      *
@@ -147,7 +167,8 @@ class Compose
 
     /**
      * Always pass the project name, so COMPOSE_PROJECT_NAME in a stray .env
-     * can't rename the stack.
+     * or a `name:` in the project's own compose files can't rename the
+     * stack.
      *
      * @return array<int, string>
      */

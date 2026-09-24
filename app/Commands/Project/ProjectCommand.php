@@ -20,7 +20,8 @@ abstract class ProjectCommand extends FlightCommand
 {
     /**
      * The named service, or else the first one: the app, when the project
-     * has one.
+     * has one. The project's own compose files can define any service, so
+     * compose checks those names itself.
      */
     protected function service(ProjectStack $stack, ?string $name): string
     {
@@ -31,7 +32,7 @@ abstract class ProjectCommand extends FlightCommand
             return $services[0];
         }
 
-        if (! in_array($name, $services, true)) {
+        if (! in_array($name, $services, true) && $stack->project()->ownComposeFiles() === []) {
             throw FlightException::make(
                 "The project has no \"{$name}\" service.",
                 'Expected one of: '.implode(', ', $services).'.',
@@ -69,7 +70,7 @@ abstract class ProjectCommand extends FlightCommand
             ['Project', $project->name()],
             ...($project->recipe() === null ? [] : [['Recipe', $project->recipe()->name()]]),
         ], [
-            ['Directory', $this->displayPath($stack->directory())],
+            ['Directory', $this->displayPath($project->root())],
         ]);
     }
 }

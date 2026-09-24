@@ -35,6 +35,8 @@ class UpCommand extends ProjectCommand
             fn ($output) => $compose->up($global, $output),
         );
 
+        $this->warnAboutOtherProjects($stack, $compose);
+
         $this->composing(
             'Starting the project',
             'Project started',
@@ -46,5 +48,24 @@ class UpCommand extends ProjectCommand
         $this->projectSummary('Project running', $stack);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The project's own compose files may also run under another name, e.g.
+     * after a plain `docker compose up`. Both would claim the same ports.
+     */
+    protected function warnAboutOtherProjects(ProjectStack $stack, Compose $compose): void
+    {
+        $files = $stack->project()->ownComposeFiles();
+
+        if ($files === []) {
+            return;
+        }
+
+        foreach ($compose->projects() as $name => $running) {
+            if ($name !== $stack->name() && array_intersect($files, $running) !== []) {
+                $this->warning("{$name} runs from the same compose files. Stop it with `docker compose -p {$name} down` if its ports clash.");
+            }
+        }
     }
 }

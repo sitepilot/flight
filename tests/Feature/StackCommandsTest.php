@@ -31,7 +31,7 @@ it('starts the stack with the ported up flags', function () {
     $this->artisan('stack:up')->assertExitCode(0);
 
     assertComposeRan('up -d --wait', fn ($command) => str_contains($command, '--project-directory '.$this->flightDirectory)
-        && str_contains($command, '-f '.$this->flightDirectory.'/compose.yaml'));
+        && str_contains($command, '-f '.$this->flightDirectory.'/.flight/compose.yaml'));
 });
 
 it('stops the stack removing orphans', function () {
@@ -54,20 +54,21 @@ it('reissues the certificate and restarts on secure', function () {
     assertComposeRan('up -d --remove-orphans --force-recreate');
 });
 
-it('leaves the override file out when there is none', function () {
+it('runs only its own file without compose files', function () {
     $this->artisan('stack:up')->assertExitCode(0);
 
-    assertComposeRan('up -d --wait', fn ($command) => ! str_contains($command, 'compose.override.yaml'));
+    assertComposeRan('up -d --wait', fn ($command) => str_ends_with($command, '-f '.$this->flightDirectory.'/.flight/compose.yaml up -d --wait'));
 });
 
-it('includes the override file when it exists', function () {
+it('runs the compose files listed in config.yaml after its own', function () {
+    flightConfig(['compose' => [['path' => 'compose.override.yaml', 'required' => false]]]);
     file_put_contents($this->flightDirectory.'/compose.override.yaml', "services: {}\n");
 
     $this->artisan('stack:up')->assertExitCode(0);
 
     assertComposeRan('up -d --wait', fn ($command) => str_contains(
         $command,
-        '-f '.$this->flightDirectory.'/compose.override.yaml'
+        '-f '.$this->flightDirectory.'/.flight/compose.yaml -f '.$this->flightDirectory.'/compose.override.yaml up'
     ));
 });
 

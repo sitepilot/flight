@@ -108,7 +108,7 @@ Run these from anywhere inside a project:
 | `flight up`     | Starts the Flight stack when needed, then the project, then runs its [provisioning](#provisioning) steps |
 | `flight down`   | Stops the project; the Flight stack keeps running              |
 | `flight restart`| Recreates the project's containers                             |
-| `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `compose.override.yaml` and `.env`. |
+| `flight destroy`| Removes the project's containers, volumes and data in `.flight`, after asking. Keeps your `.env`. |
 | `flight shell [service]` | Opens a shell in a container, by default your app's |
 | `flight exec -- <command>` | Runs a command in your app's container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
 | `flight logs [service]` | Shows a container's logs, by default your app's. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
@@ -158,6 +158,7 @@ provision:            # optional, commands to run on `flight up`
 | `recipe`    | A preset app and services, see [Recipes](#recipes)             |
 | `services`  | What your app uses, see [Services](#services)                  |
 | `provision` | Commands to run on every `flight up`, see [Provisioning](#provisioning) |
+| `compose`   | Your own compose files, run after Flight's, see [Compose files](#compose-files) |
 
 A project needs an app, services or a recipe.
 
@@ -181,6 +182,9 @@ app:
 Your app runs as the `app` service and is served at
 `https://<project>.flght.dev`. `flight exec`, `flight shell` and `flight logs`
 use it unless you name another service. See [PHP](#php) for its options.
+
+A project that already runs with Docker Compose can keep its compose files,
+see [A Docker Compose project](#a-docker-compose-project).
 
 ### Recipes
 
@@ -254,6 +258,9 @@ its own address:
 services:
   legacy: php:8.1      # https://<project>-legacy.flght.dev
 ```
+
+Or a service from your own compose files, see
+[A Docker Compose project](#a-docker-compose-project).
 
 See the [service reference](#service-reference) for every service and its options.
 
@@ -338,6 +345,37 @@ provision:
     run: composer install
 ```
 
+### Compose files
+
+`compose` lists compose files of your own. Flight runs its generated
+`.flight/compose.yaml` first and your files after it, in this order, as with
+`docker compose -f`. So your files can add services and override anything
+Flight generates. For example, to mount an extra folder:
+
+```yaml
+app: php:8.4
+
+compose:
+  - path: compose.override.yml
+    required: false
+```
+
+```yaml
+# compose.override.yml
+services:
+  app:
+    volumes:
+      - ./packages/my-package:/var/www/html/vendor/acme/my-package
+```
+
+A file with `required: false` is skipped when it doesn't exist, so it can be a
+personal, git-ignored override. As with `docker compose -f`, relative paths
+and `.env` resolve from the folder of the first file. The header of
+`.flight/compose.yaml` lists the files in the order Flight runs them.
+
+Your compose files can also define the whole project, see
+[A Docker Compose project](#a-docker-compose-project).
+
 ### Secrets
 
 License keys and tokens don't belong in `flight.yaml`, because you commit that
@@ -375,23 +413,10 @@ Git for you.
 
 | Path                            | What it is                                    |
 | ------------------------------- | --------------------------------------------- |
-| `compose.yaml`                  | The generated Docker Compose file; don't edit it |
-| `compose.override.yaml`         | Your own additions, see below. This one can be committed. |
+| `compose.yaml`                  | The generated Docker Compose file; don't edit it, add [compose files](#compose-files) instead |
 | `.env`                          | Your project's [secrets](#secrets)            |
 | `<service>/build/`              | Files a service's image is built from         |
 | `<service>/data/`               | What a service keeps, such as WordPress when you [develop a theme](#a-wordpress-theme-or-plugin) |
-
-For anything Flight has no option for, add a `compose.override.yaml`. Docker
-Compose merges it into the generated file. For example, to mount an extra
-folder:
-
-```yaml
-# .flight/compose.override.yaml
-services:
-  app:
-    volumes:
-      - ./packages/my-package:/var/www/html/vendor/acme/my-package
-```
 
 Tools that scan your whole repository, such as linters, may need `.flight`
 added to their ignore list.
@@ -500,6 +525,58 @@ provision:
 Run `flight up`, and your theme is installed and active in a fresh WordPress
 site. You can browse the WordPress files in `.flight/app/data`.
 
+### A Docker Compose project
+
+List your compose files under `compose`, and give each service that should get
+a URL the type `compose` and its `origin`:
+
+```yaml
+app:
+  type: compose
+  origin: https://app:8443
+
+services:
+  mailpit:
+    type: compose
+    origin: http://mailpit:8025
+
+compose:
+  - compose.yml
+  - path: compose.override.yml
+    required: false
+```
+
+Stop the project if it runs with plain Docker Compose, then start it with
+Flight and open `https://<project>.flght.dev`. Mailpit is served at
+`https://<project>-mailpit.flght.dev`.
+
+```bash
+docker compose down
+flight up
+```
+
+Your files run after Flight's generated file, as described in
+[Compose files](#compose-files), also when they're in a folder such as
+`.docker/`.
+
+`flight exec`, `flight shell` and `flight logs` use the app unless you name
+another service from your files:
+
+```bash
+flight logs -f db
+```
+
+The project runs as `flight-<project>`, apart from plain Docker Compose, so its
+named volumes start empty. Run your migrations, or copy a volume once:
+
+```bash
+docker run --rm -v myapp_mssql_data:/from -v flight-myapp_mssql_data:/to alpine cp -a /from/. /to/
+```
+
+`flight up` warns when your files also run under another project name, since
+both would publish the same ports. `flight destroy` removes your files'
+volumes too, as `docker compose down --volumes` does.
+
 ### Sharing a project
 
 Run `flight share` in a running project to show it to someone else, or to
@@ -515,14 +592,14 @@ need a Cloudflare account or anything installed besides Docker. The URL works
 until you press Ctrl+C, and you get a new one each time. Anyone with the URL
 can open the project.
 
-Your app still gets requests for its own hostname, such as `myapp.flght.dev`.
-Flight replaces that hostname with the public one in redirects, cookies and
-the text it sends back, so apps that only know their own URL, such as
-WordPress, work without changes. Add `--direct` to send the public hostname to
-your app instead, and leave the responses alone.
+Your app keeps receiving requests for its own hostname, such as
+`myapp.flght.dev`. Flight replaces that hostname with the public one in
+redirects, cookies and responses, so apps that only know their own URL, such
+as WordPress, work unchanged. Add `--direct` to send the public hostname to
+your app and leave responses alone.
 
-Quick tunnels are meant for testing: Cloudflare limits them to 200 requests
-at a time, and they don't support server-sent events.
+Quick tunnels are meant for testing: Cloudflare limits them to 200 concurrent
+requests, and server-sent events don't work.
 
 ## Service reference
 
@@ -599,6 +676,23 @@ services:
 Apps that talk to Redis work unchanged. In Laravel, for example, set
 `REDIS_HOST=cache`.
 
+### Compose
+
+Serves a service from your own compose files, listed under `compose`. Flight
+adds the `flight` network and Traefik labels to the service and leaves the rest
+to your files. See [A Docker Compose project](#a-docker-compose-project).
+
+```yaml
+app:
+  type: compose
+  origin: https://app:8443
+```
+
+| Option      | Default | What it is |
+| ----------- | ------- | ---------- |
+| `origin`    |         | The URL the proxy connects to: the service name and container port. Use `https://` when the container serves HTTPS itself; its self-signed certificate is accepted. |
+| `hostnames` | none    | Extra addresses, see [Hostnames](#hostnames) |
+
 ### Traefik
 
 The proxy in the Flight stack. You don't add it to a project; it is configured
@@ -614,8 +708,8 @@ in the [global configuration](#global-configuration). Its dashboard is at
 ## Global configuration
 
 Settings that apply to all projects live in `~/.config/flight/config.yaml`.
-Open it with `flight stack:config`, and run `flight stack:restart` after
-changing it.
+`config.yml` works too; when both exist, Flight uses `config.yaml`. Open it
+with `flight stack:config`, and run `flight stack:restart` after changing it.
 
 ```yaml
 domain: flght.dev
@@ -631,66 +725,56 @@ services:
 | `domain`   | `flght.dev` | The domain your projects are served under       |
 | `network`  | `flight`    | The Docker network projects join                |
 | `services` |             | Options for the Flight stack's services, such as [Traefik](#traefik) |
+| `compose`  |             | Your own compose files, run after Flight's, see [Adding services to the Flight stack](#adding-services-to-the-flight-stack) |
 
 Every `*.<domain>` address must point to `127.0.0.1`. After changing `domain`,
 run `flight stack:secure` to create a matching certificate.
 
-The folder holds a few more files:
+The folder holds your own files, and a `.flight` folder with what Flight
+generates, just like a project:
 
 | Path                    | What it is                                         |
 | ----------------------- | -------------------------------------------------- |
 | `config.yaml`           | The settings above                                 |
 | `.env`                  | [Secrets](#secrets) for all your projects          |
-| `compose.override.yaml` | Extra services for the Flight stack, see below     |
 | `traefik/`              | Your own Traefik configuration files, loaded automatically |
-| `certs/`                | The certificate; managed by Flight                 |
-| `compose.yaml`          | The generated Compose file; don't edit it          |
+| `.flight/compose.yaml`  | The generated Compose file; don't edit it          |
+| `.flight/certs/`        | The certificate; managed by Flight                 |
+| `.flight/share/`        | The files the `flight share` image is built from   |
 
 ### Adding services to the Flight stack
 
-Services in `~/.config/flight/compose.override.yaml` start and stop with the
-Flight stack. This adds [Mailpit](https://mailpit.axllent.org) at
-`https://mail.flght.dev`:
+Services in your own compose files start and stop with the Flight stack, as
+[compose files](#compose-files) do for a project. List them under `compose`
+in `config.yaml`, with paths relative to `~/.config/flight`. This adds
+[Mailpit](https://mailpit.axllent.org) at `https://mail.flght.dev`:
 
 ```yaml
+# ~/.config/flight/config.yaml
+services:
+  mail:
+    type: compose
+    origin: http://mailpit:8025
+
+compose:
+  - mailpit.yaml
+```
+
+```yaml
+# ~/.config/flight/mailpit.yaml
 services:
   mailpit:
     image: axllent/mailpit
-    labels:
-      traefik.enable: true
-      traefik.http.routers.mailpit.rule: "Host(`mail.${FLIGHT_DOMAIN}`)"
-      traefik.http.services.mailpit.loadbalancer.server.port: 8025
 ```
 
-In this file you can use `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`, `FLIGHT_HTTP_PORT`,
-`FLIGHT_HTTPS_PORT` and `FLIGHT_DOCKER_SOCK`.
+In these files you can use `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`,
+`FLIGHT_HTTP_PORT`, `FLIGHT_HTTPS_PORT` and `FLIGHT_DOCKER_SOCK`.
 
 ### Custom Traefik configuration
 
 Any `.yaml` or `.yml` file in `~/.config/flight/traefik` is loaded by Traefik
 right away, without a restart. Use it for middlewares, or to route to
 something outside Docker.
-
-### Projects without a flight.yaml
-
-Any Compose project can use Flight's HTTPS. Join the `flight` network and add
-Traefik labels:
-
-```yaml
-services:
-  app:
-    networks:
-      - default
-      - flight
-    labels:
-      traefik.enable: true
-      traefik.http.routers.myapp.rule: "Host(`myapp.flght.dev`)"
-      traefik.http.services.myapp.loadbalancer.server.port: 80
-
-networks:
-  flight:
-    external: true
-```
 
 ## Troubleshooting
 

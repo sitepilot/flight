@@ -13,7 +13,7 @@ use App\Support\Files;
  * change the www-data user's ID at build time. Matching it to the host user
  * keeps the mounted project writable on Linux and WSL.
  */
-class Php extends Service implements Routed
+class PhpService extends Service implements Routed
 {
     public const array VERSIONS = ['8.1', '8.2', '8.3', '8.4', '8.5'];
 
@@ -263,12 +263,12 @@ class Php extends Service implements Routed
     protected function mounts(): array
     {
         if ($this->projectPath() === null) {
-            return ['.:'.self::APP_DIR];
+            return [$this->composePath().':'.self::APP_DIR];
         }
 
         return [
-            $this->relativePath($this->directory('data')).':'.self::APP_DIR,
-            '.:'.$this->appPath($this->projectPath()),
+            $this->composePath('data').':'.self::APP_DIR,
+            $this->composePath().':'.$this->appPath($this->projectPath()),
         ];
     }
 
@@ -284,7 +284,7 @@ class Php extends Service implements Routed
 
     protected function buildContext(): string
     {
-        return $this->relativePath($this->directory('build'));
+        return $this->composePath('build');
     }
 
     protected function documentRoot(): string

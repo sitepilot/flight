@@ -21,6 +21,27 @@ it('reads settings from config.yaml', function () {
         ->and(flightSettings()->network())->toBe('proxy');
 });
 
+it('reads config.yml when there is no config.yaml', function () {
+    file_put_contents($this->flightDirectory.'/config.yml', "domain: yml.dev\n");
+
+    expect(flightSettings()->file())->toBe($this->flightDirectory.'/config.yml')
+        ->and(flightSettings()->domain())->toBe('yml.dev');
+});
+
+it('prefers config.yaml over config.yml', function () {
+    file_put_contents($this->flightDirectory.'/config.yml', "domain: yml.dev\n");
+    flightConfig(['domain' => 'yaml.dev']);
+
+    expect(flightSettings()->domain())->toBe('yaml.dev');
+});
+
+it('creates config.yaml when there is neither', function () {
+    flightSettings()->scaffold();
+
+    expect($this->flightDirectory.'/config.yaml')->toBeFile()
+        ->and($this->flightDirectory.'/config.yml')->not->toBeFile();
+});
+
 it('takes the global services from the proxy recipe', function () {
     expect(flightSettings()->recipe()->name())->toBe('proxy')
         ->and(flightSettings()->services())->toBe(['traefik' => ['type' => 'traefik']]);

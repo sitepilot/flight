@@ -1,12 +1,13 @@
 <?php
 
-use App\Recipes\Laravel;
-use App\Recipes\Proxy;
-use App\Recipes\WordPress;
-use App\Services\MariaDB;
-use App\Services\Php;
-use App\Services\Traefik;
-use App\Services\Valkey;
+use App\Recipes\LaravelRecipe;
+use App\Recipes\ProxyRecipe;
+use App\Recipes\WordPressRecipe;
+use App\Services\ComposeService;
+use App\Services\MariaDBService;
+use App\Services\PhpService;
+use App\Services\TraefikService;
+use App\Services\ValkeyService;
 
 return [
 
@@ -58,7 +59,7 @@ return [
     |
     */
 
-    'app_types' => ['php'],
+    'app_types' => ['php', 'compose'],
 
     /*
     |--------------------------------------------------------------------------
@@ -71,10 +72,11 @@ return [
     */
 
     'services' => [
-        'traefik' => Traefik::class,
-        'php' => Php::class,
-        'mariadb' => MariaDB::class,
-        'valkey' => Valkey::class,
+        'traefik' => TraefikService::class,
+        'compose' => ComposeService::class,
+        'php' => PhpService::class,
+        'mariadb' => MariaDBService::class,
+        'valkey' => ValkeyService::class,
     ],
 
     /*
@@ -87,9 +89,9 @@ return [
     */
 
     'recipes' => [
-        'proxy' => Proxy::class,
-        'laravel' => Laravel::class,
-        'wordpress' => WordPress::class,
+        'proxy' => ProxyRecipe::class,
+        'laravel' => LaravelRecipe::class,
+        'wordpress' => WordPressRecipe::class,
     ],
 
 ];

@@ -27,7 +27,7 @@ class Scaffold
             foreach ($service->composeServices() as $name => $definition) {
                 // Only what the proxy serves joins its network. Databases and
                 // workers stay in the stack's own network.
-                $routed = $name === $service->name() && $service instanceof Routed;
+                $routed = $name === $service->composeName() && $service instanceof Routed;
 
                 if ($routed) {
                     $definition['labels'] = [...$definition['labels'] ?? [], ...$this->labels($stack, $service)];

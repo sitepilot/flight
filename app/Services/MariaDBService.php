@@ -8,7 +8,7 @@ namespace App\Services;
  * A MariaDB server with its data in a named volume. Reachable from the
  * other services at its name, e.g. "db".
  */
-class MariaDB extends Service
+class MariaDBService extends Service
 {
     public const array VERSIONS = ['10.6', '10.11', '11.4', '11.8'];
 

@@ -7,7 +7,6 @@ namespace App\Services;
 use App\Stacks\Stack;
 use App\Support\GlobalConfig;
 use App\Support\HasOptions;
-use Illuminate\Support\Str;
 
 /**
  * One service in a stack's compose file, built from its options in
@@ -101,13 +100,21 @@ abstract class Service
     }
 
     /**
+     * The service's name in the compose file, e.g. "app".
+     */
+    public function composeName(): string
+    {
+        return $this->name;
+    }
+
+    /**
      * The names of this service's compose services, e.g. "app", "queue".
      *
      * @return array<int, string>
      */
     public function composeNames(): array
     {
-        return [$this->name, ...array_keys($this->workers())];
+        return [$this->composeName(), ...array_keys($this->workers())];
     }
 
     /**
@@ -122,7 +129,7 @@ abstract class Service
         $definition = $this->definition();
 
         if ($this->workers() === []) {
-            return [$this->name => $definition];
+            return [$this->composeName() => $definition];
         }
 
         // Name a built image, so the workers can run it too.
@@ -130,7 +137,7 @@ abstract class Service
             $definition['image'] = $this->workerImage();
         }
 
-        $services = [$this->name => $definition];
+        $services = [$this->composeName() => $definition];
 
         foreach ($this->workers() as $worker => $command) {
             $services[$worker] = $this->workerDefinition($definition, $command);
@@ -157,7 +164,7 @@ abstract class Service
             ...$definition,
             // Built by the service itself, so never pulled.
             ...($built ? ['pull_policy' => 'never'] : []),
-            'depends_on' => [$this->name],
+            'depends_on' => [$this->composeName()],
             'command' => ['sh', '-c', $command],
             'healthcheck' => ['disable' => true],
         ];
@@ -239,8 +246,9 @@ abstract class Service
     public function prepare(): void {}
 
     /**
-     * A folder of this service in the stack's files directory: "build" for
-     * files Flight generates, "data" for what the service keeps.
+     * A folder of this service in the stack's files directory, for writing
+     * files: "build" for files Flight generates, "data" for what the service
+     * keeps.
      */
     protected function directory(string $name): string
     {
@@ -248,12 +256,31 @@ abstract class Service
     }
 
     /**
-     * A path as compose expects it, relative to the compose project
-     * directory, e.g. "./.flight/app/build".
+     * The same folder as compose reads it, e.g. "./.flight/app/build", or
+     * the project itself without a name: ".".
      */
-    protected function relativePath(string $path): string
+    protected function composePath(?string $name = null): string
     {
-        return './'.ltrim(Str::after($path, $this->stack->directory()), '/');
+        return $this->relativePath($name === null ? $this->stack->config()->directory() : $this->directory($name));
+    }
+
+    /**
+     * Relative to the compose project directory, so "./.." and the like
+     * when the project's compose files are in a subfolder.
+     */
+    private function relativePath(string $path): string
+    {
+        $from = array_values(array_filter(explode('/', $this->stack->directory())));
+        $to = array_values(array_filter(explode('/', $path)));
+
+        while ($from !== [] && $to !== [] && $from[0] === $to[0]) {
+            array_shift($from);
+            array_shift($to);
+        }
+
+        $parts = [...array_fill(0, count($from), '..'), ...$to];
+
+        return $parts === [] ? '.' : './'.implode('/', $parts);
     }
 
     /**

@@ -39,7 +39,7 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
     {
         $service = $this->sharedService($stack);
 
-        $running = $compose->run($stack, ['ps', '--status', 'running', '--quiet', $service->name()]);
+        $running = $compose->run($stack, ['ps', '--status', 'running', '--quiet', $service->composeName()]);
 
         if (trim($running->output()) === '') {
             throw FlightException::make('The project is not running.', 'Start it first with: flight up');
