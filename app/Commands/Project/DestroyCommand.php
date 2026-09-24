@@ -35,14 +35,11 @@ class DestroyCommand extends ProjectCommand
             fn ($output) => $compose->destroy($stack, $output),
         );
 
-        $kept = $project->removeFiles();
+        $project->removeFiles();
 
         $this->step('Data in .flight removed');
 
-        $this->note(
-            ($kept === [] ? '' : 'Kept your '.implode(' and ', $kept).' in .flight. ').
-            'Run `flight up` to start over.',
-        );
+        $this->note('Run `flight up` to start over.');
 
         return self::SUCCESS;
     }

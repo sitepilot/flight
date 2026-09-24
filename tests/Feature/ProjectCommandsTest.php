@@ -65,13 +65,13 @@ it('runs the compose files listed under compose after its own', function () {
     expect($this->commands[0])->toContain("-f {$this->project}/.flight/compose.yaml -f {$this->project}/compose.override.yml down");
 });
 
-it('keeps compose away from the application env file', function () {
+it('lets compose read the project .env, as plain docker compose does', function () {
     expect(app(ProjectStack::class)->environment())
         ->toMatchArray([
             'FLIGHT_DOMAIN' => 'flght.dev',
             'FLIGHT_PROJECT' => 'myapp',
-            'COMPOSE_DISABLE_ENV_FILE' => '1',
-        ]);
+        ])
+        ->not->toHaveKey('COMPOSE_DISABLE_ENV_FILE');
 });
 
 it('reports an invalid flight.yaml without running compose', function () {
@@ -133,21 +133,6 @@ it('destroys the project containers and volumes', function () {
     expect($this->commands)->toHaveCount(1)
         ->and($this->commands[0])->toContain('-p flight-myapp')
         ->toEndWith('down --volumes --remove-orphans');
-});
-
-it('removes the data in .flight but keeps the user files', function () {
-    mkdir($this->project.'/.flight/app/data', 0755, true);
-    file_put_contents($this->project.'/.flight/app/data/index.php', '<?php');
-    file_put_contents($this->project.'/.flight/.env', "TOKEN=secret\n");
-
-    $this->withoutMockingConsoleOutput()->artisan('destroy --force');
-
-    expect(Artisan::output())->toContain('Kept your .env in .flight.')
-        ->and($this->project.'/.flight/app')->not->toBeDirectory()
-        ->and($this->project.'/.flight/compose.yaml')->not->toBeFile()
-        ->and($this->project.'/.flight/.env')->toBeFile()
-        // Still keeps .env out of git.
-        ->and($this->project.'/.flight/.gitignore')->toBeFile();
 });
 
 it('removes .flight entirely when it holds no user files', function () {
@@ -286,4 +271,23 @@ it('shows the logs of a worker', function () {
     $this->artisan('logs queue')->assertExitCode(0);
 
     expect($this->commands[0])->toEndWith(' logs queue');
+});
+
+it('warns when a step reads a secret from a .env git does not ignore', function () {
+    file_put_contents($this->project.'/flight.yaml', <<<'YAML'
+        app: php
+        provision:
+          - name: Install dependencies
+            env: [COMPOSER_AUTH]
+            run: composer install
+        YAML);
+    file_put_contents($this->project.'/.env', "COMPOSER_AUTH=secret\n");
+
+    Process::fake(fn ($process) => Process::result(
+        exitCode: str_contains(implode(' ', (array) $process->command), 'check-ignore') ? 1 : 0,
+    ));
+
+    $this->withoutMockingConsoleOutput()->artisan('up');
+
+    expect(Artisan::output())->toContain("which Git doesn't ignore. Add .env to .gitignore");
 });

@@ -16,11 +16,6 @@ class ProjectConfig extends StackConfig
      */
     public const array FILES = ['flight.yaml', 'flight.yml'];
 
-    /**
-     * The user's files in .flight, which survive `flight destroy`.
-     */
-    public const array USER_FILES = ['.env'];
-
     protected ?string $file = null;
 
     /**
@@ -79,41 +74,17 @@ class ProjectConfig extends StackConfig
         return 'flight-'.$this->name();
     }
 
-    /**
-     * Returns the user's files that were kept.
-     */
-    public function removeFiles(): array
+    public function removeFiles(): void
     {
-        $directory = $this->filesDirectory();
-
-        if (! is_dir($directory)) {
-            return [];
+        if (is_dir($this->filesDirectory())) {
+            Files::deleteDirectory($this->filesDirectory());
         }
-
-        $keep = array_values(array_filter(self::USER_FILES, fn (string $file): bool => file_exists("{$directory}/{$file}")));
-
-        if ($keep === []) {
-            Files::deleteDirectory($directory);
-
-            return [];
-        }
-
-        foreach (array_diff((array) scandir($directory), ['.', '..', '.gitignore', ...$keep]) as $entry) {
-            $path = "{$directory}/{$entry}";
-
-            is_dir($path) && ! is_link($path) ? Files::deleteDirectory($path) : Files::delete($path);
-        }
-
-        return $keep;
     }
 
     public function environment(): array
     {
         return [
             'FLIGHT_PROJECT' => $this->name(),
-            // The project's .env belongs to the application, not to compose,
-            // unless the project's own compose files expect it.
-            ...($this->ownComposeFiles() === [] ? ['COMPOSE_DISABLE_ENV_FILE' => '1'] : []),
         ];
     }
 

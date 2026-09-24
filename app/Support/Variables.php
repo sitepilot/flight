@@ -8,15 +8,21 @@ use App\Exceptions\FlightException;
 use App\Provisioning\Step;
 use Dotenv\Dotenv;
 use Dotenv\Exception\ExceptionInterface;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 /**
  * Variables that aren't committed, such as license keys. They're looked up in
- * the shell, then the project's .flight/.env, then ~/.config/flight/.env.
+ * the shell, then the project's .env, then ~/.config/flight/.env.
  */
 class Variables
 {
     protected array $files = [];
+
+    /**
+     * Whether a variable was read from the project's .env.
+     */
+    protected bool $readProjectFile = false;
 
     public function __construct(protected GlobalConfig $global) {}
 
@@ -28,10 +34,12 @@ class Variables
             return $value;
         }
 
-        foreach ($this->sources($config) as $file) {
+        foreach ($this->sources($config) as $i => $file) {
             $value = $this->read($file)[$name] ?? null;
 
             if ($value !== null) {
+                $this->readProjectFile = $this->readProjectFile || $i === 0;
+
                 return $value;
             }
         }
@@ -65,10 +73,29 @@ class Variables
         return 'Set it in '.implode(', in ', array_unique($files)).', or in your shell.';
     }
 
+    /**
+     * The project's .env, when a variable was read from it and Git doesn't
+     * ignore it, so the secret could be committed.
+     */
+    public function unignoredProjectFile(StackConfig $config): ?string
+    {
+        $directory = $config->projectDirectory();
+
+        if (! $this->readProjectFile || ! Executable::exists('git')) {
+            return null;
+        }
+
+        // Exits with 1 when the file isn't ignored, and 128 outside a
+        // repository, where nothing is committed.
+        $ignored = Process::run(['git', '-C', $directory, 'check-ignore', '--quiet', '.env'])->exitCode();
+
+        return $ignored === 1 ? $directory.'/.env' : null;
+    }
+
     protected function sources(StackConfig $config): array
     {
         return [
-            $config->filesDirectory().'/.env',
+            $config->projectDirectory().'/.env',
             $this->global->directory().'/.env',
         ];
     }

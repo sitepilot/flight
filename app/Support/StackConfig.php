@@ -35,6 +35,18 @@ abstract class StackConfig
 
     abstract public function directory(): string;
 
+    /**
+     * The compose project directory, where compose resolves paths and reads
+     * .env: the folder of the first file listed under `compose`, as for
+     * `docker compose -f`, or else the config's.
+     */
+    public function projectDirectory(): string
+    {
+        $files = $this->ownComposeFiles();
+
+        return $files === [] ? $this->directory() : dirname($files[0]);
+    }
+
     public function filesDirectory(): string
     {
         return $this->directory().'/.flight';

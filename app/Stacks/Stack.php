@@ -36,15 +36,9 @@ abstract class Stack
         return $this->config->stackName();
     }
 
-    /**
-     * The folder of the first file listed under `compose`, as for `docker
-     * compose -f`, or else the config's.
-     */
     public function directory(): string
     {
-        $files = $this->config->ownComposeFiles();
-
-        return $files === [] ? $this->config->directory() : dirname($files[0]);
+        return $this->config->projectDirectory();
     }
 
     public function filesDirectory(): string

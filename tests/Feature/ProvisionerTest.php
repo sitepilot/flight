@@ -182,12 +182,11 @@ it('passes the variables a step needs by name only', function () {
     }
 });
 
-it('reads a step variable from the project .flight/.env', function () {
+it('reads a step variable from the project .env', function () {
     $root = flightProject(['app' => ['type' => 'php'], 'provision' => [
         ['name' => 'Install dependencies', 'service' => 'app', 'env' => ['COMPOSER_AUTH'], 'run' => 'true'],
     ]]);
-    mkdir($root.'/.flight');
-    file_put_contents($root.'/.flight/.env', "COMPOSER_AUTH=from-file\n");
+    file_put_contents($root.'/.env', "COMPOSER_AUTH=from-file\n");
 
     provisionAll();
 
@@ -201,7 +200,7 @@ it('stops before anything runs when a step variable is not set', function () {
 
     expect(fn () => provisioner()->steps(app(ProjectStack::class)))->toThrow(function (FlightException $e) {
         expect($e->getMessage())->toBe('Step "Install dependencies" needs COMPOSER_AUTH.')
-            ->and($e->hint())->toContain('.flight/.env');
+            ->and($e->hint())->toContain('/.env');
     });
 
     Process::assertNothingRan();

@@ -9,6 +9,7 @@ use App\Stacks\GlobalStack;
 use App\Stacks\ProjectStack;
 use App\Support\Certificate;
 use App\Support\Compose;
+use App\Support\Variables;
 
 class UpCommand extends ProjectCommand
 {
@@ -16,10 +17,14 @@ class UpCommand extends ProjectCommand
 
     protected $description = 'Start the project in the current directory';
 
-    public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate, Provisioner $provisioner): int
+    public function handle(ProjectStack $stack, GlobalStack $global, Compose $compose, Certificate $certificate, Provisioner $provisioner, Variables $variables): int
     {
         $stack->validate();
         $steps = $provisioner->steps($stack);
+
+        if (($file = $variables->unignoredProjectFile($stack->project())) !== null) {
+            $this->warning("Steps read secrets from {$this->displayPath($file)}, which Git doesn't ignore. Add .env to .gitignore, so they aren't committed.");
+        }
 
         $this->step(sprintf(
             'Certificate %s for %s',

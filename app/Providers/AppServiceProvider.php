@@ -6,6 +6,7 @@ use App\Stacks\GlobalStack;
 use App\Stacks\ProjectStack;
 use App\Support\GlobalConfig;
 use App\Support\ProjectConfig;
+use App\Support\Variables;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,5 +20,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ProjectConfig::class);
 
         $this->app->singleton(ProjectStack::class);
+
+        // Remembers where it read a step's variables, for `flight up` to warn.
+        $this->app->singleton(Variables::class);
     }
 }

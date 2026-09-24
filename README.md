@@ -180,7 +180,7 @@ flight restart
 ```
 
 To start over, the `destroy` command removes the project's containers, volumes
-and the data in `.flight`, after asking. Your `.flight/.env` file is kept:
+and the `.flight` directory, after asking:
 
 ```shell
 flight destroy
@@ -490,7 +490,7 @@ provision:
 Flight looks for each variable in three places, and uses the first it finds:
 
 1. Your shell, e.g. `export COMPOSER_AUTH=...`
-2. The project's `.flight/.env` file, for this project only
+2. The project's `.env` file, which Docker Compose reads too
 3. The `~/.config/flight/.env` file, for all your projects
 
 ```ini
@@ -498,10 +498,14 @@ Flight looks for each variable in three places, and uses the first it finds:
 COMPOSER_AUTH='{"github-oauth": {"github.com": "your-token"}}'
 ```
 
-Neither file is committed. If a variable can't be found, `flight up` stops
-before starting anything and tells you where to set it. Inside the step, use
-the variable as `${NAME}`, or let a tool read it, as Composer does here. Your
-project's own `.env` file is left alone; that one belongs to your app.
+If a variable can't be found, `flight up` stops before starting anything and
+tells you where to set it. Inside the step, use the variable as `${NAME}`, or
+let a tool read it, as Composer does here. Only the variables a step lists are
+read.
+
+> [!WARNING]
+> Keep the project's `.env` file out of Git. `flight up` warns when a step
+> reads a secret from a `.env` file that Git doesn't ignore.
 
 <a name="compose-files"></a>
 ### Compose Files
@@ -538,13 +542,12 @@ Your compose files may also define a whole project, see
 <a name="the-flight-directory"></a>
 ### The .flight Directory
 
-Flight keeps its files for a project in a `.flight` directory, which it hides
-from Git for you:
+Flight keeps the files it generates for a project in a `.flight` directory,
+which it hides from Git for you:
 
 | Path               | Description |
 | ------------------ | ----------- |
 | `compose.yaml`     | The generated Docker Compose file; don't edit it, add [compose files](#compose-files) instead |
-| `.env`             | Your project's [secrets](#secrets) |
 | `<service>/build/` | Files a service's image is built from |
 | `<service>/data/`  | What a service keeps, such as WordPress when you [develop a theme](#wordpress-themes-and-plugins) |
 
