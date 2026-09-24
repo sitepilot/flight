@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Services\Routed;
+use App\Services\Service;
 use App\Stacks\Stack;
 
 /**
@@ -25,9 +27,13 @@ class Scaffold
             foreach ($service->composeServices() as $name => $definition) {
                 // Only what the proxy serves joins its network. Databases and
                 // workers stay in the stack's own network.
-                $definition['networks'] ??= $name === $service->name() && $service::routes()
-                    ? $stack->serviceNetworks()
-                    : ['default'];
+                $routed = $name === $service->name() && $service instanceof Routed;
+
+                if ($routed) {
+                    $definition['labels'] = [...$definition['labels'] ?? [], ...$this->labels($stack, $service)];
+                }
+
+                $definition['networks'] ??= $routed ? $stack->serviceNetworks() : ['default'];
 
                 $services[$name] = $definition;
             }
@@ -42,5 +48,31 @@ class Scaffold
             // An empty section is left out.
             'volumes' => $volumes,
         ]), $stack->composeNote());
+    }
+
+    /**
+     * Traefik labels that route the service's hostnames to its origin.
+     *
+     * @return array<string, string>
+     */
+    protected function labels(Stack $stack, Service&Routed $service): array
+    {
+        $origin = (array) parse_url($service->origin());
+        $scheme = $origin['scheme'] ?? 'http';
+
+        // Router names are global in Traefik, so prefix them with the stack.
+        $router = $stack->name().'-'.$service->name();
+
+        $rule = implode(' || ', array_map(
+            fn (string $hostname): string => "Host(`{$hostname}`)",
+            $service->hostnames(),
+        ));
+
+        return [
+            'traefik.enable' => 'true',
+            "traefik.http.routers.{$router}.rule" => $rule,
+            "traefik.http.services.{$router}.loadbalancer.server.port" => (string) ($origin['port'] ?? 80),
+            ...($scheme === 'http' ? [] : ["traefik.http.services.{$router}.loadbalancer.server.scheme" => $scheme]),
+        ];
     }
 }

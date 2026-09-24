@@ -14,8 +14,7 @@ use Illuminate\Support\Str;
  * config.yaml or flight.yaml. The options are validated when the service is
  * built, so mistakes are reported before anything is written or started.
  *
- * A service that routes() is served over HTTPS at the label the stack gives
- * it, plus any `hostnames` option it declares. A service that declares a
+ * A service that is Routed is served over HTTPS. A service that declares a
  * `workers` option runs them next to it, on its image.
  */
 abstract class Service
@@ -88,15 +87,6 @@ abstract class Service
      * @return array<string, mixed>
      */
     abstract public function definition(): array;
-
-    /**
-     * Whether the proxy serves this service over HTTPS. Static, because the
-     * stack needs to know before it builds the service.
-     */
-    public static function routes(): bool
-    {
-        return false;
-    }
 
     /**
      * Commands by worker name: background processes, such as a queue
@@ -187,13 +177,14 @@ abstract class Service
     }
 
     /**
-     * The hostnames this service is served at.
+     * The hostnames this service is served at. Only a Routed service gets a
+     * label from the stack.
      *
      * @return array<int, string>
      */
     public function hostnames(): array
     {
-        if (! static::routes() || $this->label === null) {
+        if ($this->label === null) {
             return [];
         }
 
@@ -263,30 +254,6 @@ abstract class Service
     protected function relativePath(string $path): string
     {
         return './'.ltrim(Str::after($path, $this->stack->directory()), '/');
-    }
-
-    /**
-     * Traefik labels that route hostnames() to a port in this container.
-     * With https, Traefik accepts the container's self-signed certificate.
-     *
-     * @return array<string, string>
-     */
-    protected function route(int $port, string $scheme = 'http'): array
-    {
-        // Router names are global in Traefik, so prefix them with the stack.
-        $router = $this->stack->name().'-'.$this->name;
-
-        $rule = implode(' || ', array_map(
-            fn (string $hostname): string => "Host(`{$hostname}`)",
-            $this->hostnames(),
-        ));
-
-        return [
-            'traefik.enable' => 'true',
-            "traefik.http.routers.{$router}.rule" => $rule,
-            "traefik.http.services.{$router}.loadbalancer.server.port" => (string) $port,
-            ...($scheme === 'http' ? [] : ["traefik.http.services.{$router}.loadbalancer.server.scheme" => $scheme]),
-        ];
     }
 
     /**

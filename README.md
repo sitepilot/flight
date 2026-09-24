@@ -112,6 +112,7 @@ Run these from anywhere inside a project:
 | `flight shell [service]` | Opens a shell in a container, by default your app's |
 | `flight exec -- <command>` | Runs a command in your app's container, e.g. `flight exec -- php artisan migrate`. Add `--service=<name>` for another service. |
 | `flight logs [service]` | Shows a container's logs, by default your app's. Add `-f` to keep following them and `--tail=100` for only the latest lines. |
+| `flight share [service]` | Shares your app, or another service with a URL, at a temporary public URL until you press Ctrl+C. See [Sharing a project](#sharing-a-project). |
 
 These manage the Flight stack itself:
 
@@ -498,6 +499,30 @@ provision:
 
 Run `flight up`, and your theme is installed and active in a fresh WordPress
 site. You can browse the WordPress files in `.flight/app/data`.
+
+### Sharing a project
+
+Run `flight share` in a running project to show it to someone else, or to
+receive webhooks:
+
+```sh
+flight share
+```
+
+Flight opens a [Cloudflare quick tunnel](https://try.cloudflare.com/) and
+shows its URL, such as `https://calm-river-lake.trycloudflare.com`. You don't
+need a Cloudflare account or anything installed besides Docker. The URL works
+until you press Ctrl+C, and you get a new one each time. Anyone with the URL
+can open the project.
+
+Your app still gets requests for its own hostname, such as `myapp.flght.dev`.
+Flight replaces that hostname with the public one in redirects, cookies and
+the text it sends back, so apps that only know their own URL, such as
+WordPress, work without changes. Add `--direct` to send the public hostname to
+your app instead, and leave the responses alone.
+
+Quick tunnels are meant for testing: Cloudflare limits them to 200 requests
+at a time, and they don't support server-sent events.
 
 ## Service reference
 

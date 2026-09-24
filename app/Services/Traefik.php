@@ -10,7 +10,7 @@ use App\Support\YamlFile;
  * The reverse proxy. Terminates TLS for *.<domain> and routes to containers
  * on the shared network. Its dashboard is served at traefik.<domain>.
  */
-class Traefik extends Service
+class Traefik extends Service implements Routed
 {
     protected function defaults(): array
     {
@@ -28,11 +28,6 @@ class Traefik extends Service
             'https_port' => ['required', 'integer', 'between:1,65535', 'different:http_port'],
             'docker_socket' => ['required', 'string'],
         ];
-    }
-
-    public static function routes(): bool
-    {
-        return true;
     }
 
     public function definition(): array
@@ -66,9 +61,15 @@ class Traefik extends Service
                 $this->global->certsDirectory().':/opt/flight/certs:ro',
                 $this->option('docker_socket').':/var/run/docker.sock',
             ],
-            // The dashboard listens on 8080.
-            'labels' => $this->route(8080),
         ];
+    }
+
+    /**
+     * The dashboard.
+     */
+    public function origin(): string
+    {
+        return "http://{$this->name}:8080";
     }
 
     public function environment(): array

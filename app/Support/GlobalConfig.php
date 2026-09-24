@@ -47,6 +47,14 @@ class GlobalConfig extends StackConfig
         return $this->directory().'/traefik';
     }
 
+    /**
+     * The build context of the image `flight share` runs.
+     */
+    public function shareDirectory(): string
+    {
+        return $this->directory().'/share';
+    }
+
     public function certificateFile(): string
     {
         return $this->certsDirectory().'/ssl.crt';

@@ -13,7 +13,7 @@ use App\Support\Files;
  * change the www-data user's ID at build time. Matching it to the host user
  * keeps the mounted project writable on Linux and WSL.
  */
-class Php extends Service
+class Php extends Service implements Routed
 {
     public const array VERSIONS = ['8.1', '8.2', '8.3', '8.4', '8.5'];
 
@@ -88,11 +88,6 @@ class Php extends Service
         ];
     }
 
-    public static function routes(): bool
-    {
-        return true;
-    }
-
     /**
      * An unquoted `node: 22` parses as a number. A decimal such as `20.10`
      * would lose its zero, so it has to be quoted.
@@ -133,8 +128,12 @@ class Php extends Service
                 'SHOW_WELCOME_MESSAGE' => 'false',
                 ...$this->logEnvironment(),
             ],
-            'labels' => $this->route(8443, 'https'),
         ];
+    }
+
+    public function origin(): string
+    {
+        return "https://{$this->name}:8443";
     }
 
     public function prepare(): void
@@ -248,11 +247,6 @@ class Php extends Service
             'frankenphp' => ['LOG_OUTPUT_LEVEL' => 'warn'],
             default => [],
         };
-    }
-
-    public function description(): string
-    {
-        return "PHP {$this->option('version')}";
     }
 
     public function image(): string

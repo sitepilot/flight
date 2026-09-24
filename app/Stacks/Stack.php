@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Stacks;
 
+use App\Services\Routed;
 use App\Services\Service;
 use App\Support\GlobalConfig;
 use App\Support\StackConfig;
@@ -99,7 +100,7 @@ abstract class Stack
                 'stack' => $this,
                 'name' => (string) $name,
                 'options' => $options,
-                'label' => $class::routes() ? $this->config->label((string) $name) : null,
+                'label' => is_a($class, Routed::class, true) ? $this->config->label((string) $name) : null,
                 'path' => $name === StackConfig::APP ? 'app' : "services.{$name}",
             ]);
         }
@@ -141,6 +142,15 @@ abstract class Stack
         return $this->config->ownsNetwork()
             ? ['default' => ['name' => $this->global->network()]]
             : ['flight' => ['name' => $this->global->network(), 'external' => true]];
+    }
+
+    /**
+     * The stack's own network, e.g. "flight-myapp_default", on which its
+     * services reach each other by name.
+     */
+    public function network(): string
+    {
+        return $this->config->ownsNetwork() ? $this->global->network() : $this->name().'_default';
     }
 
     /**
