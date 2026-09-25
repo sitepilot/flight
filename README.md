@@ -31,6 +31,7 @@ address such as `https://myapp.flght.dev`, ready to work on.
 - [How Flight Works](#how-flight-works)
 - [Managing Projects](#managing-projects)
     - [Starting and Stopping Projects](#starting-and-stopping-projects)
+    - [Listing Projects](#listing-projects)
     - [Running Commands](#running-commands)
     - [Viewing Logs](#viewing-logs)
     - [Sharing Projects](#sharing-projects)
@@ -196,6 +197,26 @@ flight open mailpit
 
 Flight uses the command in `$BROWSER` when it is set. Under WSL, it opens the
 Windows browser, which trusts Flight's certificate.
+
+<a name="listing-projects"></a>
+### Listing Projects
+
+The `list` command shows your running projects and their directories:
+
+```shell
+flight list
+```
+
+To run a project command without changing to the project's directory, pass
+the name of a running project with `-p`, or `--project`:
+
+```shell
+flight down -p myapp
+flight logs -p myapp -f
+```
+
+A stopped project isn't listed, since Docker no longer knows about it. Run
+`flight up` in its directory to start it again.
 
 <a name="running-commands"></a>
 ### Running Commands

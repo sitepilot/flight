@@ -8,6 +8,7 @@ use App\Support\GlobalConfig;
 use App\Support\ProjectConfig;
 use App\Support\Variables;
 use Illuminate\Support\ServiceProvider;
+use NunoMaduro\LaravelConsoleSummary\SummaryCommand;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,5 +24,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Remembers where it read a step's variables, for `flight up` to warn.
         $this->app->singleton(Variables::class);
+
+        // The summary that `flight` shows without a command is named "list",
+        // which would replace `flight list`.
+        $this->app->extend(SummaryCommand::class, fn (SummaryCommand $command) => $command->setName('summary'));
     }
 }

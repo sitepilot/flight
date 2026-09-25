@@ -8,6 +8,7 @@ use App\Exceptions\FlightException;
 use App\Stacks\Stack;
 use Closure;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
 use Symfony\Component\Process\Process as SymfonyProcess;
 
@@ -102,6 +103,26 @@ class Compose
 
         foreach ((array) json_decode($result->successful() ? $result->output() : '', true) as $project) {
             $projects[(string) ($project['Name'] ?? '')] = explode(',', (string) ($project['ConfigFiles'] ?? ''));
+        }
+
+        return $projects;
+    }
+
+    /**
+     * The running Flight projects, as name ⇒ root directory, found by
+     * Flight's own compose file in the project's .flight directory. Compose
+     * doesn't list the files in the order they were passed.
+     */
+    public function flightProjects(): array
+    {
+        $projects = [];
+
+        foreach ($this->projects() as $name => $files) {
+            $file = Arr::first($files, fn (string $file): bool => str_ends_with($file, '/.flight/compose.yaml'));
+
+            if (str_starts_with($name, 'flight-') && $file !== null) {
+                $projects[substr($name, strlen('flight-'))] = dirname($file, 2);
+            }
         }
 
         return $projects;

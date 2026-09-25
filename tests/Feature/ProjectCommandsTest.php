@@ -291,3 +291,31 @@ it('warns when a step reads a secret from a .env git does not ignore', function 
 
     expect(Artisan::output())->toContain("which Git doesn't ignore. Add .env to .gitignore");
 });
+
+it('runs a command for the running project named with -p', function () {
+    $ls = json_encode([['Name' => 'flight-myapp', 'Status' => 'running(1)', 'ConfigFiles' => $this->project.'/.flight/compose.yaml']]);
+
+    Process::fake(function ($process) use ($ls) {
+        $this->commands[] = $command = implode(' ', (array) $process->command);
+
+        return Process::result(str_starts_with($command, 'docker compose ls') ? $ls : '');
+    });
+
+    chdir(sys_get_temp_dir());
+
+    $this->artisan('down', ['-p' => 'myapp'])->assertExitCode(0);
+
+    $commands = $this->commands->getArrayCopy();
+
+    expect(end($commands))->toContain('--project-directory '.$this->project.' -p flight-myapp')
+        ->toEndWith('down --remove-orphans');
+});
+
+it('refuses a project name with -p that is not running', function () {
+    chdir(sys_get_temp_dir());
+
+    $exitCode = $this->withoutMockingConsoleOutput()->artisan('down', ['--project' => 'shop']);
+
+    expect($exitCode)->toBe(1)
+        ->and(Artisan::output())->toContain('No running project named "shop".');
+});

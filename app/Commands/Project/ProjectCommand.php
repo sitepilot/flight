@@ -10,11 +10,44 @@ use App\Provisioning\Provisioner;
 use App\Services\Routed;
 use App\Services\Service;
 use App\Stacks\ProjectStack;
+use App\Support\Compose;
 use Closure;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 abstract class ProjectCommand extends FlightCommand
 {
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->addOption('project', 'p', InputOption::VALUE_REQUIRED, 'The name of a running project to use, instead of the current directory');
+    }
+
+    /**
+     * The project's flight.yaml is searched for from the working directory,
+     * so switching to the named project's root is enough.
+     */
+    protected function prepare(): void
+    {
+        $name = $this->option('project');
+
+        if ($name === null) {
+            return;
+        }
+
+        $root = $this->laravel->make(Compose::class)->flightProjects()[$name] ?? null;
+
+        if ($root === null) {
+            throw FlightException::make(
+                "No running project named \"{$name}\".",
+                'Run `flight list` to see the running projects.',
+            );
+        }
+
+        chdir($root);
+    }
+
     /**
      * The project's own compose files can define any service, so compose
      * checks those names itself.

@@ -38,6 +38,8 @@ abstract class FlightCommand extends Command
         }
 
         try {
+            $this->prepare();
+
             $status = parent::execute($input, $output);
         } catch (FlightException $e) {
             $this->renderFailure($e);
@@ -51,6 +53,12 @@ abstract class FlightCommand extends Command
 
         return $status;
     }
+
+    /**
+     * Runs before handle() resolves its dependencies, and its failures are
+     * reported like those of handle().
+     */
+    protected function prepare(): void {}
 
     protected function heading(): void
     {
