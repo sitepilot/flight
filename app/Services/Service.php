@@ -127,7 +127,14 @@ abstract class Service
             ...($built ? ['pull_policy' => 'never'] : []),
             'depends_on' => [$this->composeName()],
             'command' => ['sh', '-c', $command],
-            'healthcheck' => ['disable' => true],
+            // A worker is healthy while it runs. The image's own check is
+            // the service's, and `up --wait` rejects a disabled one, so this
+            // one passes, checked every second while the worker starts.
+            'healthcheck' => [
+                'test' => ['CMD', 'true'],
+                'start_period' => '10s',
+                'start_interval' => '1s',
+            ],
         ];
     }
 

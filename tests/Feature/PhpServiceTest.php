@@ -345,7 +345,7 @@ it('runs workers on the app image, each in a container of its own', function () 
         ->and($queue)->not->toHaveKeys(['build', 'labels', 'ports'])
         ->and($queue['depends_on'])->toBe(['app'])
         ->and($queue['command'])->toBe(['sh', '-c', 'php artisan queue:work'])
-        ->and($queue['healthcheck'])->toBe(['disable' => true])
+        ->and($queue['healthcheck'])->toBe(['test' => ['CMD', 'true'], 'start_period' => '10s', 'start_interval' => '1s'])
         // The same mounts as the app.
         ->and($queue['volumes'])->toBe($services['app']['volumes'])
         // The same environment, minus the web server's certificate.
