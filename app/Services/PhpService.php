@@ -33,7 +33,13 @@ class PhpService extends Service implements Routed
      */
     public const string PATH = '#^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]*$#';
 
-    protected const string WP_CLI = 'https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar';
+    /**
+     * A pinned release, which Docker checks against its SHA-256 from the
+     * release page. Update both together.
+     */
+    protected const string WP_CLI = 'https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar';
+
+    protected const string WP_CLI_SHA256 = 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c';
 
     protected function defaults(): array
     {
@@ -190,7 +196,7 @@ class PhpService extends Service implements Routed
         }
 
         if ($this->option('wp_cli')) {
-            $instructions[] = 'ADD --chmod=755 '.self::WP_CLI.' /usr/local/bin/wp';
+            $instructions[] = 'ADD --checksum=sha256:'.self::WP_CLI_SHA256.' --chmod=755 '.self::WP_CLI.' /usr/local/bin/wp';
         }
 
         // Apache's access log can't be turned off with a setting.

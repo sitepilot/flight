@@ -249,7 +249,7 @@ it('installs extensions and wp-cli in the image when asked', function () {
     $dockerfile = file_get_contents(getcwd().'/.flight/app/build/Dockerfile');
 
     expect($dockerfile)->toContain("RUN install-php-extensions mysqli gd\n")
-        ->and($dockerfile)->toContain('ADD --chmod=755 https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar /usr/local/bin/wp')
+        ->and($dockerfile)->toContain('ADD --checksum=sha256:ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c --chmod=755 https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar /usr/local/bin/wp')
         // Installed as root, before switching back.
         ->and(strpos($dockerfile, 'install-php-extensions'))->toBeLessThan(strpos($dockerfile, 'USER www-data'));
 });
