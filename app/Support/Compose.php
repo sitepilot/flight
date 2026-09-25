@@ -134,7 +134,7 @@ class Compose
 
         $tty = $this->hasTty();
 
-        return Process::env($stack->environment())
+        return Process::env($this->environment($stack))
             ->forever()
             ->tty($tty)
             ->run([...$this->command($stack), ...$arguments], $tty ? null : $output);
@@ -147,9 +147,19 @@ class Compose
 
     protected function process(Stack $stack, array $arguments, ?Closure $output = null, int $timeout = 300, array $env = []): ProcessResult
     {
-        return Process::env([...$stack->environment(), ...$env])
+        return Process::env([...$this->environment($stack), ...$env])
             ->timeout($timeout)
             ->run([...$this->command($stack), ...$arguments], $output);
+    }
+
+    /**
+     * Without build attestations, which record the build's time, an
+     * unchanged build keeps its image ID, so `up` doesn't recreate the
+     * container.
+     */
+    protected function environment(Stack $stack): array
+    {
+        return [...$stack->environment(), 'BUILDX_NO_DEFAULT_ATTESTATIONS' => '1'];
     }
 
     /**

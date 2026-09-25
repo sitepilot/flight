@@ -322,3 +322,10 @@ it('refuses a project name with -p that is not running', function () {
     expect($exitCode)->toBe(1)
         ->and(Artisan::output())->toContain('No running project named "shop".');
 });
+
+it('builds without attestations, so an unchanged build keeps the running container', function () {
+    $this->artisan('up')->assertExitCode(0);
+
+    Process::assertRan(fn ($process) => str_ends_with(implode(' ', (array) $process->command), 'up -d --wait')
+        && ($process->environment['BUILDX_NO_DEFAULT_ATTESTATIONS'] ?? null) === '1');
+});
