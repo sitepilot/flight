@@ -3,11 +3,13 @@
 use App\Exceptions\FlightException;
 use App\Stacks\GlobalStack;
 use App\Support\Scaffold;
+use Illuminate\Support\Facades\Process;
 use Symfony\Component\Yaml\Yaml;
 use Tests\Fixtures\StubService;
 
 beforeEach(function () {
     flightDirectory();
+    Process::fake(fn ($process) => composeConfig($process, 'flight') ?? Process::result(''));
 
     StubService::$prepared = false;
 });

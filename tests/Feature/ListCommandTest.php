@@ -25,7 +25,7 @@ it('lists the running flight projects', function () {
     composeLs([
         'flight' => ['/home/me/.config/flight/.flight/compose.yaml'],
         // Compose lists the project's own files before Flight's.
-        'flight-myapp' => ['/home/me/code/myapp/compose.yaml', '/home/me/code/myapp/.flight/compose.yaml'],
+        'myapp' => ['/home/me/code/myapp/compose.yaml', '/home/me/code/myapp/.flight/compose.yaml'],
         'other' => ['/home/me/code/other/compose.yaml'],
     ]);
 

@@ -62,7 +62,10 @@ it('runs the compose files listed under compose after its own', function () {
 
     $this->artisan('down')->assertExitCode(0);
 
-    expect($this->commands[0])->toContain("-f {$this->project}/.flight/compose.yaml -f {$this->project}/compose.override.yml down");
+    // After compose reads the files, to see if they have x-flight services.
+    $commands = $this->commands->getArrayCopy();
+
+    expect(end($commands))->toContain("-f {$this->project}/.flight/compose.yaml -f {$this->project}/compose.override.yml down");
 });
 
 it('lets compose read the project .env, as plain docker compose does', function () {

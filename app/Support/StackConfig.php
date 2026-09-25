@@ -8,7 +8,9 @@ use App\Exceptions\FlightException;
 use App\Recipes\Recipe;
 use App\Services\PhpService;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -27,9 +29,11 @@ abstract class StackConfig
 
     protected ?array $ownComposeFiles = null;
 
+    protected ?array $composeModel = null;
+
     /**
      * Where each service with `x-flight` is set, by Flight name, e.g.
-     * `['path' => 'services.web.x-flight', 'file' => '/…/compose.yml']`.
+     * "services.web.x-flight".
      */
     protected array $extensions = [];
 
@@ -100,6 +104,15 @@ abstract class StackConfig
      */
     public function environment(): array
     {
+        return $this->variables($this->load());
+    }
+
+    /**
+     * Taken from $settings, so they're also known while the compose files
+     * are read, before the settings finish loading.
+     */
+    protected function variables(array $settings): array
+    {
         return [];
     }
 
@@ -109,7 +122,9 @@ abstract class StackConfig
      */
     public function ownComposeFiles(): array
     {
-        $this->load();
+        if ($this->ownComposeFiles === null) {
+            $this->load();
+        }
 
         return $this->ownComposeFiles;
     }
@@ -120,7 +135,7 @@ abstract class StackConfig
      */
     public function servicePath(string $name): string
     {
-        return $this->extensions[$name]['path'] ?? ($name === self::APP ? self::APP : "services.{$name}");
+        return $this->extensions[$name] ?? ($name === self::APP ? self::APP : "services.{$name}");
     }
 
     /**
@@ -194,7 +209,7 @@ abstract class StackConfig
             $services[$name] = $this->service((string) $name, $options);
         }
 
-        foreach ($this->composeExtensions($this->ownComposeFiles) as $name => $options) {
+        foreach ($this->composeExtensions($settings) as $name => $options) {
             if (array_key_exists($name, $services)) {
                 $where = $name === self::APP ? '`app:`' : "services.{$name}";
 
@@ -229,36 +244,57 @@ abstract class StackConfig
     }
 
     /**
-     * The services with `x-flight` in the own compose files, keyed by their
-     * Flight name. When a service has `x-flight` in several files, the one
-     * in the file listed last is used as a whole, not merged. Values are
-     * read as written: compose's variables aren't filled in.
+     * The own compose files as compose itself merges and interpolates them,
+     * with `extends` and `include` resolved. Only compose's unnormalized
+     * YAML keeps the services' `x-` keys.
      */
-    protected function composeExtensions(array $files): array
+    protected function composeModel(array $settings): array
     {
-        $found = [];
-
-        foreach ($files as $file) {
-            try {
-                $parsed = Yaml::parseFile($file);
-            } catch (ParseException $e) {
-                throw FlightException::make("Could not parse {$file}.", $e->getMessage());
-            }
-
-            foreach ((array) (is_array($parsed) ? $parsed['services'] ?? [] : []) as $service => $definition) {
-                if (is_array($definition) && array_key_exists('x-flight', $definition)) {
-                    $found[(string) $service] = [$file, $definition['x-flight']];
-                }
-            }
+        if ($this->composeModel !== null) {
+            return $this->composeModel;
         }
 
+        if ($this->ownComposeFiles() === []) {
+            return $this->composeModel = [];
+        }
+
+        $command = ['docker', 'compose', '--project-directory', $this->projectDirectory()];
+
+        foreach ($this->ownComposeFiles() as $file) {
+            $command[] = '-f';
+            $command[] = $file;
+        }
+
+        // Without the consistency check, a file may change a service that
+        // only Flight's generated file defines.
+        $result = Process::env($this->variables($settings))->run([...$command, 'config', '--no-normalize', '--no-consistency']);
+
+        if ($result->failed()) {
+            throw FlightException::fromProcess($result, 'Could not read your compose files.');
+        }
+
+        return $this->composeModel = (array) Yaml::parse($result->output());
+    }
+
+    /**
+     * The services with `x-flight` in the own compose files, keyed by their
+     * Flight name.
+     */
+    protected function composeExtensions(array $settings): array
+    {
         $services = [];
 
-        foreach ($found as $service => [$file, $options]) {
+        foreach ((array) ($this->composeModel($settings)['services'] ?? []) as $service => $definition) {
+            if (! is_array($definition) || ! array_key_exists('x-flight', $definition)) {
+                continue;
+            }
+
+            $service = (string) $service;
+            $options = $definition['x-flight'];
             $path = "services.{$service}.x-flight";
 
-            // Registered first, so errors below name the compose file.
-            $this->extensions[$service] = ['path' => $path, 'file' => $file];
+            // Registered first, so errors below name the compose files.
+            $this->extensions[$service] = $path;
 
             if (! $this->isMap($options)) {
                 throw $this->invalid("Expected where the proxy reaches the service, such as `origin: https://{$service}:8443`.", $path);
@@ -267,7 +303,7 @@ abstract class StackConfig
             $app = $this->hasApp() && ($options['app'] ?? $service === self::APP) === true;
 
             if ($app && isset($services[self::APP])) {
-                throw $this->invalid('Expected one app, but '.$this->extensions[self::APP]['path'].' is the app too.', $path);
+                throw $this->invalid('Expected one app, but '.$this->extensions[self::APP].' is the app too.', $path);
             }
 
             if (! $app && ! preg_match('/^[a-z0-9][a-z0-9_-]*$/', $service)) {
@@ -281,7 +317,7 @@ abstract class StackConfig
 
             if ($app) {
                 unset($this->extensions[$service]);
-                $this->extensions[self::APP] = ['path' => $path, 'file' => $file];
+                $this->extensions[self::APP] = $path;
             }
 
             if ($this->hasApp()) {
@@ -487,15 +523,16 @@ abstract class StackConfig
     }
 
     /**
-     * A key under a service's `x-flight` is named in its compose file.
+     * A key under a service's `x-flight` is named in the compose files,
+     * which compose merged before Flight read them.
      */
     public function invalid(string $hint, ?string $key = null): FlightException
     {
         $file = $this->file();
 
-        foreach ($this->extensions as ['path' => $path, 'file' => $source]) {
+        foreach ($this->extensions as $path) {
             if ($key === $path || str_starts_with((string) $key, $path.'.')) {
-                $file = $source;
+                $file = implode(', ', array_map(fn (string $own): string => Str::after($own, $this->directory().'/'), $this->ownComposeFiles()));
             }
         }
 

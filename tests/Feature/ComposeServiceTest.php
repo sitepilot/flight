@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Process;
 beforeEach(function () {
     flightDirectory();
 
+    $this->composeName = 'myapp';
+
+    Process::fake(fn ($process) => composeConfig($process, test()->composeName) ?? Process::result(''));
+
     $this->compose = <<<'YAML'
         services:
           app:
@@ -64,6 +68,10 @@ function fakeCommands(): ArrayObject
     $commands = new ArrayObject;
 
     Process::fake(function ($process) use ($commands) {
+        if ($config = composeConfig($process, test()->composeName)) {
+            return $config;
+        }
+
         $commands[] = implode(' ', (array) $process->command);
 
         return Process::result('');
@@ -79,13 +87,13 @@ it('only adds the proxy to the app', function () {
 
     $compose = writeProjectCompose();
 
-    expect($compose['name'])->toBe('flight-myapp')
+    expect($compose['name'])->toBe('myapp')
         ->and($compose['services'])->toBe(['app' => [
             'labels' => [
                 'traefik.enable' => 'true',
-                'traefik.http.routers.flight-myapp-app.rule' => 'Host(`myapp.flght.dev`)',
-                'traefik.http.services.flight-myapp-app.loadbalancer.server.port' => '8443',
-                'traefik.http.services.flight-myapp-app.loadbalancer.server.scheme' => 'https',
+                'traefik.http.routers.myapp-app.rule' => 'Host(`myapp.flght.dev`)',
+                'traefik.http.services.myapp-app.loadbalancer.server.port' => '8443',
+                'traefik.http.services.myapp-app.loadbalancer.server.scheme' => 'https',
             ],
             'networks' => ['default', 'flight'],
         ]])
@@ -99,7 +107,7 @@ it('runs its own file first, then the compose files, under its flight name', fun
     $this->artisan('down')->assertExitCode(0);
 
     expect($commands[0])->toBe(
-        "docker compose --project-directory {$project} -p flight-myapp -f {$project}/.flight/compose.yaml -f {$project}/compose.yml down --remove-orphans"
+        "docker compose --project-directory {$project} -p myapp -f {$project}/.flight/compose.yaml -f {$project}/compose.yml down --remove-orphans"
     );
 });
 
@@ -124,7 +132,7 @@ it('runs from the folder of the first file, as compose does', function () {
 
     $this->artisan('down')->assertExitCode(0);
 
-    expect($commands[0])->toStartWith("docker compose --project-directory {$project}/.docker -p flight-myapp -f {$project}/.flight/compose.yaml -f {$project}/.docker/compose.yml");
+    expect($commands[0])->toStartWith("docker compose --project-directory {$project}/.docker -p myapp -f {$project}/.flight/compose.yaml -f {$project}/.docker/compose.yml");
 });
 
 it('writes paths from the folder of the first file', function () {
@@ -167,12 +175,12 @@ it('serves the services with x-flight, and the app marked as the app', function 
     $compose = writeProjectCompose();
 
     expect(array_keys($compose['services']))->toBe(['web', 'mailpit'])
-        ->and($compose['services']['web']['labels'])->toHaveKey('traefik.http.routers.flight-myapp-app.rule', 'Host(`myapp.flght.dev`)')
+        ->and($compose['services']['web']['labels'])->toHaveKey('traefik.http.routers.myapp-app.rule', 'Host(`myapp.flght.dev`)')
         ->and($compose['services']['mailpit']['labels'])->toMatchArray([
-            'traefik.http.routers.flight-myapp-mailpit.rule' => 'Host(`myapp-mailpit.flght.dev`)',
-            'traefik.http.services.flight-myapp-mailpit.loadbalancer.server.port' => '8025',
+            'traefik.http.routers.myapp-mailpit.rule' => 'Host(`myapp-mailpit.flght.dev`)',
+            'traefik.http.services.myapp-mailpit.loadbalancer.server.port' => '8025',
         ])
-        ->and($compose['services']['mailpit']['labels'])->not->toHaveKey('traefik.http.services.flight-myapp-mailpit.loadbalancer.server.scheme');
+        ->and($compose['services']['mailpit']['labels'])->not->toHaveKey('traefik.http.services.myapp-mailpit.loadbalancer.server.scheme');
 });
 
 it('uses the app by default and passes other services to compose', function () {
@@ -255,14 +263,14 @@ it('serves any service marked as the app', function () {
     composeProject();
 
     expect(writeProjectCompose()['services']['web.test']['labels'])
-        ->toHaveKey('traefik.http.routers.flight-myapp-app.rule', 'Host(`myapp.flght.dev`)');
+        ->toHaveKey('traefik.http.routers.myapp-app.rule', 'Host(`myapp.flght.dev`)');
 });
 
 it('lets a later compose file change x-flight', function () {
     composeProject(files: ['compose.override.yml' => "services:\n  app:\n    x-flight:\n      origin: http://app:8080\n"]);
 
     expect(writeProjectCompose()['services']['app']['labels'])
-        ->toHaveKey('traefik.http.services.flight-myapp-app.loadbalancer.server.port', '8080');
+        ->toHaveKey('traefik.http.services.myapp-app.loadbalancer.server.port', '8080');
 });
 
 it('runs x-flight services next to the services in flight.yaml', function () {
@@ -280,17 +288,17 @@ it('warns when the compose files also run under another name', function () {
     Process::fake(function ($process) use ($project) {
         $command = implode(' ', (array) $process->command);
 
-        return str_contains($command, 'compose ls')
+        return composeConfig($process, test()->composeName) ?? (str_contains($command, 'compose ls')
             ? Process::result(json_encode([
                 ['Name' => 'flight', 'ConfigFiles' => '/home/me/.config/flight/compose.yaml'],
-                ['Name' => 'myapp', 'ConfigFiles' => "{$project}/compose.yml,{$project}/compose.override.yml"],
+                ['Name' => 'other', 'ConfigFiles' => "{$project}/compose.yml,{$project}/compose.override.yml"],
             ]))
-            : Process::result('');
+            : Process::result(''));
     });
 
     $this->withoutMockingConsoleOutput()->artisan('up');
 
-    expect(Artisan::output())->toContain('myapp runs from the same compose files.')
+    expect(Artisan::output())->toContain('other runs from the same compose files.')
         ->not->toContain('flight runs from');
 });
 
@@ -313,4 +321,39 @@ it('leaves out the order when it runs only its own file', function () {
     writeProjectCompose();
 
     expect(file_get_contents(getcwd().'/.flight/compose.yaml'))->not->toContain('in this order');
+});
+
+it('runs under the name docker compose gives the project', function () {
+    $project = composeProject(files: ['compose.override.yml' => "services: {}\n"]);
+    $this->composeName = 'shop';
+
+    expect(app(ProjectStack::class)->name())->toBe('shop');
+
+    // Only the own files: Flight's generated file sets the name itself.
+    Process::assertRan(fn ($process) => implode(' ', $process->command) === "docker compose --project-directory {$project} -f {$project}/compose.yml -f {$project}/compose.override.yml config --no-normalize --no-consistency"
+        && $process->environment === ['FLIGHT_DOMAIN' => 'flght.dev', 'FLIGHT_NETWORK' => 'flight', 'FLIGHT_PROJECT' => 'myapp']);
+});
+
+it('explains when compose cannot read the files', function () {
+    composeProject();
+
+    Process::fake(fn () => Process::result(errorOutput: 'yaml: line 3: did not find expected key', exitCode: 15));
+
+    expect(fn () => app(ProjectStack::class)->name())->toThrow(FlightException::class, 'Could not read your compose files.');
+});
+
+it('keeps its flight name when its own compose files only change it', function () {
+    $this->compose = "services:\n  app:\n    volumes: ['./packages:/var/www/packages']\n";
+    composeProject(['app' => 'php']);
+
+    expect(app(ProjectStack::class)->name())->toBe('flight-myapp');
+});
+
+it('refuses the name of the flight stack', function () {
+    composeProject();
+    $this->composeName = 'flight';
+
+    expect(fn () => app(ProjectStack::class)->name())->toThrow(
+        fn (FlightException $e) => expect($e->hint())->toContain('"flight" is the name of the Flight stack.'),
+    );
 });

@@ -5,6 +5,7 @@ use App\Support\Certificate;
 use App\Support\GlobalConfig;
 use App\Support\Scaffold;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Process;
 use Mockery\MockInterface;
 use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
@@ -126,4 +127,28 @@ function withEditorEnv(?string $visual, ?string $editor, Closure $callback): mix
         putenv('VISUAL');
         putenv('EDITOR');
     }
+}
+
+/**
+ * What `docker compose config` answers for a faked process: the files after
+ * -f merged key by key, named $name. Null for any other command, so a fake
+ * can fall back to its own result.
+ */
+function composeConfig($process, string $name = 'myapp'): mixed
+{
+    $command = (array) $process->command;
+
+    if (! in_array('config', $command, true)) {
+        return null;
+    }
+
+    $model = [];
+
+    foreach ($command as $i => $argument) {
+        if ($argument === '-f') {
+            $model = array_replace_recursive($model, (array) Yaml::parseFile($command[$i + 1]));
+        }
+    }
+
+    return Process::result(Yaml::dump(['name' => $name, ...$model], 8));
 }

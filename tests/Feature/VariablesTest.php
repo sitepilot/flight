@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Process;
 beforeEach(function () {
     flightDirectory();
     $this->root = flightProject();
+    Process::fake(fn ($process) => composeConfig($process) ?? Process::result(''));
 });
 
 afterEach(function () {

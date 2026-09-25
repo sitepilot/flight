@@ -72,11 +72,11 @@ class GlobalConfig extends StackConfig
         return (string) $this->get('network');
     }
 
-    public function environment(): array
+    protected function variables(array $settings): array
     {
         return [
-            'FLIGHT_DOMAIN' => $this->domain(),
-            'FLIGHT_NETWORK' => $this->network(),
+            'FLIGHT_DOMAIN' => (string) $settings['domain'],
+            'FLIGHT_NETWORK' => (string) $settings['network'],
         ];
     }
 

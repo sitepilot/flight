@@ -18,7 +18,7 @@ use Symfony\Component\Process\Process as SymfonyProcess;
  */
 class Compose
 {
-    public function __construct(protected Scaffold $scaffold) {}
+    public function __construct(protected Scaffold $scaffold, protected GlobalConfig $global) {}
 
     protected const array HINTS = [
         'Cannot connect to the Docker daemon' => 'Docker is installed but not running. Start Docker Desktop, or run: sudo systemctl start docker',
@@ -109,7 +109,7 @@ class Compose
     }
 
     /**
-     * The running Flight projects, as name ⇒ root directory, found by
+     * The running Flight projects, as Flight name ⇒ root directory, found by
      * Flight's own compose file in the project's .flight directory. Compose
      * doesn't list the files in the order they were passed.
      */
@@ -120,8 +120,8 @@ class Compose
         foreach ($this->projects() as $name => $files) {
             $file = Arr::first($files, fn (string $file): bool => str_ends_with($file, '/.flight/compose.yaml'));
 
-            if (str_starts_with($name, 'flight-') && $file !== null) {
-                $projects[substr($name, strlen('flight-'))] = dirname($file, 2);
+            if ($name !== $this->global->stackName() && $file !== null) {
+                $projects[ProjectConfig::nameAt(dirname($file, 2))] = dirname($file, 2);
             }
         }
 

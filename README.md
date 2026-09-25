@@ -732,16 +732,13 @@ compose:
 ```
 
 The service named `app` is the app. To make another service the app, add
-`app: true` to its `x-flight`. Flight reads `x-flight` as written, so it can't
-use compose variables such as `${APP_PORT}`. When a service has `x-flight` in
-more than one of your files, Flight only uses the one in the file listed last.
-See [Compose](#compose) for all options.
+`app: true` to its `x-flight`. Flight reads `x-flight` through Docker Compose,
+so variables such as `${APP_PORT}`, later files, `extends` and `include` work
+as for any other setting. See [Compose](#compose) for all options.
 
-Stop the project if it runs with plain Docker Compose, then start it with
-Flight:
+Then start it with Flight:
 
 ```shell
-docker compose down
 flight up
 ```
 
@@ -757,17 +754,13 @@ service from your files:
 flight logs -f db
 ```
 
-The project runs as `flight-<project>`, apart from plain Docker Compose, so its
-named volumes start empty. Run your migrations, or copy a volume once:
+Flight runs the project under the same name as Docker Compose, so
+`docker compose` keeps working on the same containers and volumes. A plain
+`docker compose up` leaves out the Flight address; run `flight up` to get it
+back.
 
-```shell
-docker run --rm -v myapp_mssql_data:/from -v flight-myapp_mssql_data:/to alpine cp -a /from/. /to/
-```
-
-> [!WARNING]
-> Use either Flight or plain Docker Compose for a project: both would publish
-> the same ports. `flight up` warns when your files also run under another
-> project name. `flight destroy` removes your files' volumes too, as
+> [!NOTE]
+> `flight destroy` removes your files' volumes too, as
 > `docker compose down --volumes` does.
 
 <a name="available-services"></a>

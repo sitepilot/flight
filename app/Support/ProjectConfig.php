@@ -8,6 +8,8 @@ use App\Exceptions\FlightException;
 use App\Provisioning\Step;
 use App\Services\PhpService;
 use Illuminate\Support\Str;
+use Symfony\Component\Yaml\Yaml;
+use Throwable;
 
 class ProjectConfig extends StackConfig
 {
@@ -17,6 +19,8 @@ class ProjectConfig extends StackConfig
     public const array FILES = ['flight.yaml', 'flight.yml'];
 
     protected ?string $file = null;
+
+    protected ?string $stackName = null;
 
     /**
      * Searched for up from the current directory, so commands work anywhere
@@ -66,12 +70,54 @@ class ProjectConfig extends StackConfig
     }
 
     /**
-     * Prefixed, so a project named "flight" can't collide with the global
-     * stack.
+     * A project that runs from its own compose files, with services from
+     * `x-flight`, gets the name docker compose itself gives it, so plain
+     * `docker compose` commands act on the same containers and volumes.
+     * Others are prefixed, so they can't collide with a compose project of
+     * the same folder name.
      */
     public function stackName(): string
     {
-        return 'flight-'.$this->name();
+        if ($this->stackName !== null) {
+            return $this->stackName;
+        }
+
+        $this->load();
+
+        if ($this->extensions === []) {
+            return $this->stackName = 'flight-'.$this->name();
+        }
+
+        // Compose's own rules: COMPOSE_PROJECT_NAME, a `name:` in the files,
+        // or the folder of the first one.
+        $name = (string) ($this->composeModel($this->load())['name'] ?? '');
+
+        if ($name === $this->container->make(GlobalConfig::class)->stackName()) {
+            throw $this->invalid("Expected another project name; \"{$name}\" is the name of the Flight stack.", 'name');
+        }
+
+        return $this->stackName = $name;
+    }
+
+    /**
+     * The Flight name of the project at $root, without loading all of its
+     * settings.
+     */
+    public static function nameAt(string $root): string
+    {
+        foreach (self::FILES as $file) {
+            if (is_file("{$root}/{$file}")) {
+                try {
+                    $name = Yaml::parseFile("{$root}/{$file}")['name'] ?? null;
+                } catch (Throwable) {
+                    $name = null;
+                }
+
+                return is_string($name) ? $name : Str::slug(basename($root));
+            }
+        }
+
+        return Str::slug(basename($root));
     }
 
     public function removeFiles(): void
@@ -81,10 +127,11 @@ class ProjectConfig extends StackConfig
         }
     }
 
-    public function environment(): array
+    protected function variables(array $settings): array
     {
         return [
-            'FLIGHT_PROJECT' => $this->name(),
+            ...$this->container->make(GlobalConfig::class)->environment(),
+            'FLIGHT_PROJECT' => $settings['name'],
         ];
     }
 
