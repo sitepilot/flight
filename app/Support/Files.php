@@ -45,6 +45,18 @@ class Files
         }
     }
 
+    public static function link(string $target, string $link): void
+    {
+        static::ensureDirectory(dirname($link));
+
+        if (! @symlink($target, $link)) {
+            throw FlightException::make(
+                "Could not create a link at {$link}.",
+                'Check that you have permission to write there.',
+            );
+        }
+    }
+
     public static function put(string $path, string $contents): void
     {
         static::ensureDirectory(dirname($path));

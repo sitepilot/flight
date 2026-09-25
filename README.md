@@ -59,6 +59,7 @@ address such as `https://myapp.flght.dev`, ready to work on.
 - [Global Configuration](#global-configuration)
     - [Adding Services to the Flight Stack](#adding-services-to-the-flight-stack)
     - [Custom Traefik Configuration](#custom-traefik-configuration)
+- [AI Agents](#ai-agents)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
@@ -966,6 +967,25 @@ In these files, you may use the `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`,
 Any `.yaml` or `.yml` file in `~/.config/flight/traefik` is loaded by Traefik
 right away, without a restart. You may use it for middlewares, or to route to
 something outside Docker.
+
+<a name="ai-agents"></a>
+## AI Agents
+
+Flight comes with an [agent skill](https://agentskills.io) that teaches AI
+coding agents, such as Codex, Cursor, GitHub Copilot and Claude Code, how to
+run and configure your project with Flight. To add it to a project, run:
+
+```shell
+flight skill
+```
+
+Flight writes the skill to `.agents/skills/flight`, where most agents look
+for it. Claude Code only reads `.claude/skills`, so Flight offers to link the
+skill there too. Commit both, so everyone working on the project gets it. To
+install the skill for all your projects instead, in your home directory, add
+`--global`.
+
+Run the command again after updating Flight, to update the skill.
 
 <a name="troubleshooting"></a>
 ## Troubleshooting
