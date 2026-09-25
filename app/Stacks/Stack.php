@@ -102,7 +102,7 @@ abstract class Stack
                 'name' => (string) $name,
                 'options' => $options,
                 'label' => is_a($class, Routed::class, true) ? $this->config->label((string) $name) : null,
-                'path' => $name === StackConfig::APP ? 'app' : "services.{$name}",
+                'path' => $this->config->servicePath((string) $name),
             ]);
         }
 
@@ -191,7 +191,7 @@ abstract class Stack
 
     protected function path(Service $service): string
     {
-        return $service->name() === StackConfig::APP ? 'app' : "services.{$service->name()}";
+        return $this->config->servicePath($service->name());
     }
 
     /**

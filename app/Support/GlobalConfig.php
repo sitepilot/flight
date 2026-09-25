@@ -106,6 +106,14 @@ class GlobalConfig extends StackConfig
         }
     }
 
+    /**
+     * The Flight stack has no app, so `x-flight` never makes one.
+     */
+    protected function hasApp(): bool
+    {
+        return false;
+    }
+
     protected function recipeSetting(array $settings): mixed
     {
         return config('flight.recipe');

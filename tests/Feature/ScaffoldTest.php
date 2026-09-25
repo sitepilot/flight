@@ -115,11 +115,8 @@ it('never touches a compose file of the user', function () {
     expect(file_get_contents($this->flightDirectory.'/compose.override.yaml'))->toBe("services:\n  mine: {}\n");
 });
 it('serves a service from compose files listed in config.yaml', function () {
-    flightConfig([
-        'services' => ['mailpit' => ['type' => 'compose', 'origin' => 'http://mailpit:8025']],
-        'compose' => ['mailpit.yaml'],
-    ]);
-    file_put_contents($this->flightDirectory.'/mailpit.yaml', "services:\n  mailpit:\n    image: axllent/mailpit\n");
+    flightConfig(['compose' => ['mailpit.yaml']]);
+    file_put_contents($this->flightDirectory.'/mailpit.yaml', "services:\n  mailpit:\n    image: axllent/mailpit\n    x-flight:\n      origin: http://mailpit:8025\n");
 
     $mailpit = writeCompose()['services']['mailpit'];
 

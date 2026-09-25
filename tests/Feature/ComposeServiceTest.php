@@ -13,6 +13,8 @@ beforeEach(function () {
             image: example/app
             environment:
               DB_PASSWORD: ${DB_PASSWORD?}
+            x-flight:
+              origin: https://app:8443
           mssql:
             image: mcr.microsoft.com/mssql/server
             volumes:
@@ -25,15 +27,11 @@ beforeEach(function () {
 /**
  * A project that runs compose.yml, and an optional compose.override.yml,
  * with its app from them.
- *
- * @param  array<string, mixed>  $settings
- * @param  array<string, string>  $files
  */
 function composeProject(array $settings = [], array $files = []): string
 {
     $project = flightProject([
         'compose' => ['compose.yml', ['path' => 'compose.override.yml', 'required' => false]],
-        'app' => ['type' => 'compose', 'origin' => 'https://app:8443'],
         ...$settings,
     ]);
 
@@ -141,11 +139,30 @@ it('writes paths from the folder of the first file', function () {
         ->and($admin['volumes'])->toBe(['./..:/var/www/html']);
 });
 
-it('serves the service its origin names', function () {
-    composeProject([
-        'app' => ['type' => 'compose', 'origin' => 'https://web:8443'],
-        'services' => ['mailpit' => ['type' => 'compose', 'origin' => 'http://mailpit:8025']],
-    ]);
+/**
+ * Compose files with the app as "web", and Mailpit.
+ */
+function webCompose(): string
+{
+    return <<<'YAML'
+        services:
+          web:
+            image: example/app
+            x-flight:
+              app: true
+              origin: https://web:8443
+          mssql:
+            image: mcr.microsoft.com/mssql/server
+          mailpit:
+            image: axllent/mailpit
+            x-flight:
+              origin: http://mailpit:8025
+        YAML;
+}
+
+it('serves the services with x-flight, and the app marked as the app', function () {
+    $this->compose = webCompose();
+    composeProject();
 
     $compose = writeProjectCompose();
 
@@ -159,7 +176,8 @@ it('serves the service its origin names', function () {
 });
 
 it('uses the app by default and passes other services to compose', function () {
-    composeProject(['app' => ['type' => 'compose', 'origin' => 'https://web:8443']]);
+    $this->compose = webCompose();
+    composeProject();
     $commands = fakeCommands();
 
     $this->artisan('logs')->assertExitCode(0);
@@ -170,8 +188,8 @@ it('uses the app by default and passes other services to compose', function () {
 });
 
 it('runs provisioning steps in the app, or a service from the compose files', function () {
+    $this->compose = webCompose();
     composeProject([
-        'app' => ['type' => 'compose', 'origin' => 'https://web:8443'],
         'provision' => [
             ['name' => 'Migrate', 'run' => 'php artisan migrate'],
             ['name' => 'Seed', 'service' => 'mssql', 'run' => 'seed'],
@@ -190,15 +208,70 @@ it('runs provisioning steps in the app, or a service from the compose files', fu
 it('rejects invalid settings', function (array $settings, string $error) {
     expect(invalidCompose($settings))->toContain($error);
 })->with([
-    'no origin' => [['app' => ['type' => 'compose']], 'Expected where the proxy reaches the service'],
-    'an origin without a port' => [['app' => ['type' => 'compose', 'origin' => 'https://app']], 'Expected where the proxy reaches the service'],
-    'no compose files' => [['compose' => null], 'Expected the compose files to run, set at the top level'],
     'compose files that are not a list' => [['compose' => 'compose.yml'], 'Expected the compose files to run, such as [compose.yml].'],
     'a file outside the project' => [['compose' => ['../compose.yml']], 'Expected a path inside the folder of flight.yaml'],
-    'only missing optional files' => [['compose' => [['path' => 'compose.dev.yml', 'required' => false]]], 'Expected the compose files to run, set at the top level'],
     'a missing file' => [['compose' => ['compose.yml', 'compose.dev.yml']], 'Expected compose.dev.yml to exist, or to be marked `required: false`.'],
-    'workers' => [['app' => ['type' => 'compose', 'origin' => 'https://app:8443', 'workers' => ['queue' => 'php artisan queue:work']]], 'Expected one of: origin, hostnames.'],
+    'only missing optional files' => [['compose' => [['path' => 'compose.dev.yml', 'required' => false]]], 'Expected a service, such as `app: php:8.4`, or `x-flight`'],
+    'the compose type in flight.yaml' => [['services' => ['mailpit' => ['type' => 'compose', 'origin' => 'http://mailpit:8025']]], 'Expected a type such as `mariadb:11.8`'],
+    'the app in flight.yaml too' => [['app' => 'php'], 'Expected "app" in one place: `app:` in flight.yaml, or x-flight here.'],
 ]);
+
+it('rejects an invalid x-flight, naming the compose file', function (string $xFlight, string $error) {
+    $this->compose = "services:\n  app:\n    image: example/app\n    x-flight: {$xFlight}\n";
+
+    expect(invalidCompose([]))->toContain('Invalid "services.app.x-flight')
+        ->toContain('compose.yml.')
+        ->toContain($error);
+})->with([
+    'no origin' => ['{}', 'Expected where the proxy reaches the service'],
+    'an origin without a port' => ['{origin: https://app}', 'Expected where the proxy reaches the service'],
+    'an origin of another service' => ['{origin: https://web:8443}', 'Expected the origin to name this service, such as "https://app:8443".'],
+    'workers' => ['{origin: https://app:8443, workers: {queue: work}}', 'Expected one of: origin, hostnames.'],
+    'a string' => ['https://app:8443', 'Expected where the proxy reaches the service'],
+]);
+
+it('rejects two apps', function () {
+    $this->compose = <<<'YAML'
+        services:
+          app:
+            image: example/app
+            x-flight: {origin: https://app:8443}
+          web:
+            image: example/app
+            x-flight: {app: true, origin: https://web:8443}
+        YAML;
+
+    expect(invalidCompose([]))->toContain('Expected one app, but services.app.x-flight is the app too.');
+});
+
+it('rejects a service name flight cannot use', function () {
+    $this->compose = "services:\n  web.test:\n    image: example/app\n    x-flight: {origin: http://web.test:80}\n";
+
+    expect(invalidCompose([]))->toContain('or `app: true` to make it the app.');
+});
+
+it('serves any service marked as the app', function () {
+    $this->compose = "services:\n  web.test:\n    image: example/app\n    x-flight: {app: true, origin: http://web.test:80}\n";
+    composeProject();
+
+    expect(writeProjectCompose()['services']['web.test']['labels'])
+        ->toHaveKey('traefik.http.routers.flight-myapp-app.rule', 'Host(`myapp.flght.dev`)');
+});
+
+it('lets a later compose file change x-flight', function () {
+    composeProject(files: ['compose.override.yml' => "services:\n  app:\n    x-flight:\n      origin: http://app:8080\n"]);
+
+    expect(writeProjectCompose()['services']['app']['labels'])
+        ->toHaveKey('traefik.http.services.flight-myapp-app.loadbalancer.server.port', '8080');
+});
+
+it('runs x-flight services next to the services in flight.yaml', function () {
+    composeProject(['services' => ['cache' => 'valkey']]);
+
+    $compose = writeProjectCompose();
+
+    expect(array_keys($compose['services']))->toContain('app', 'cache');
+});
 
 it('warns when the compose files also run under another name', function () {
     $project = composeProject();

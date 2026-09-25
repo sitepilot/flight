@@ -42,7 +42,7 @@ class ProjectConfig extends StackConfig
             if ($parent === $directory) {
                 throw FlightException::make(
                     'No flight.yaml found in '.getcwd().' or any parent directory.',
-                    'Create a flight.yaml in your project root that says what runs your app, such as `app: php:8.4`.',
+                    'Create a flight.yaml in your project root that says what runs your app, such as `app: php:8.4`, or `compose: [compose.yml]` for your own compose files.',
                 );
             }
 
@@ -121,7 +121,7 @@ class ProjectConfig extends StackConfig
             'name' => ['required', 'string', 'regex:/^[a-z0-9][a-z0-9-]*$/'],
             'app' => ['nullable'],
             'recipe' => ['nullable'],
-            'services' => ['nullable', 'required_without_all:recipe,app', 'array'],
+            'services' => ['nullable', 'required_without_all:recipe,app,compose', 'array'],
             'provision' => ['nullable', 'list'],
             'provision.*' => ['array:name,service,run,unless,dir,env'],
             'provision.*.name' => ['required', 'string'],

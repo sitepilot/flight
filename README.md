@@ -313,7 +313,8 @@ provision:            # optional, commands to run on `flight up`
 | `provision` | Commands to run on every `flight up`, see [Provisioning](#provisioning) |
 | `compose`   | Your own compose files, run after Flight's, see [Compose Files](#compose-files) |
 
-A project needs an app, services or a recipe. Flight checks `flight.yaml`
+A project needs an app, services, a recipe, or compose files with
+[`x-flight`](#docker-compose-projects). Flight checks `flight.yaml`
 before starting anything, and names the exact setting when something is wrong.
 
 <a name="the-app"></a>
@@ -495,8 +496,8 @@ an `unless` check to skip a step once its work is done, or use a command that's
 harmless to run again. When a step fails, `flight up` stops and shows what went
 wrong.
 
-A step runs in the service's working directory, which for `app` is your app.
-Use `dir` to run it somewhere else:
+A step runs in the service's working directory, which for `app` is the project
+directory. Use `dir` to run it somewhere else:
 
 ```yaml
 provision:
@@ -568,7 +569,8 @@ personal, git-ignored override. As with `docker compose -f`, relative paths and
 `.env` resolve from the directory of the first file. The header of
 `.flight/compose.yaml` lists the files in the order Flight runs them.
 
-Your compose files may also define a whole project, see
+A service with an `x-flight` block in your files gets an address too, and
+your files may define a whole project, see
 [Docker Compose Projects](#docker-compose-projects).
 
 <a name="the-flight-directory"></a>
@@ -699,25 +701,41 @@ site. You may browse the WordPress files in `.flight/app/data`.
 <a name="docker-compose-projects"></a>
 ### Docker Compose Projects
 
-To run a project that already has compose files, list them under `compose`,
-and give each service that should get an address the `compose` type and its
-`origin`:
+To run a project that already has compose files, give each service that should
+get an address an `x-flight` block with its `origin`: the service name and the
+port it listens on. Docker Compose ignores `x-` keys, so your files keep working
+without Flight:
 
 ```yaml
-app:
-  type: compose
-  origin: https://app:8443
-
+# compose.yml
 services:
+  app:
+    image: serversideup/php:8.4-fpm-nginx
+    volumes:
+      - ./:/var/www/html
+    x-flight:
+      origin: https://app:8443
   mailpit:
-    type: compose
-    origin: http://mailpit:8025
+    image: axllent/mailpit
+    x-flight:
+      origin: http://mailpit:8025
+```
 
+Then list your files under `compose` in `flight.yaml`. For such a project, that
+may be all it holds:
+
+```yaml
 compose:
   - compose.yml
   - path: compose.override.yml
     required: false
 ```
+
+The service named `app` is the app. To make another service the app, add
+`app: true` to its `x-flight`. Flight reads `x-flight` as written, so it can't
+use compose variables such as `${APP_PORT}`. When a service has `x-flight` in
+more than one of your files, Flight only uses the one in the file listed last.
+See [Compose](#compose) for all options.
 
 Stop the project if it runs with plain Docker Compose, then start it with
 Flight:
@@ -835,20 +853,26 @@ Apps that talk to Redis work unchanged. In Laravel, for example, set
 <a name="compose"></a>
 ### Compose
 
-Serves a service from your own compose files, listed under `compose`. Flight
-adds the `flight` network and Traefik labels to the service, and leaves the
-rest to your files. See [Docker Compose Projects](#docker-compose-projects).
+Serves a service from your own compose files, listed under `compose`. You
+don't add it to `flight.yaml`: give the service an `x-flight` block in your
+compose file instead. Flight adds the `flight` network and Traefik labels to
+the service, and leaves the rest to your files. See
+[Docker Compose Projects](#docker-compose-projects).
 
 ```yaml
-app:
-  type: compose
-  origin: https://app:8443
+services:
+  web:
+    image: nginx
+    x-flight:
+      app: true
+      origin: http://web:80
 ```
 
 | Option      | Default | Description |
 | ----------- | ------- | ----------- |
-| `origin`    |         | The URL the proxy connects to: the service name and container port. Use `https://` when the container serves HTTPS itself; its self-signed certificate is accepted. |
+| `origin`    |         | The URL the proxy connects to: this service's name and container port. Use `https://` when the container serves HTTPS itself; its self-signed certificate is accepted. |
 | `hostnames` | none    | Extra addresses, see [Hostnames](#hostnames) |
+| `app`       | `false` | Makes this service the app, served at `https://<project>.flght.dev`. The default is `true` for a service named `app`. |
 
 <a name="traefik"></a>
 ### Traefik
@@ -921,16 +945,12 @@ and a `.flight` directory with what Flight generates, just like a project:
 
 Services in your own compose files start and stop with the Flight stack, as
 [compose files](#compose-files) do for a project. List them under `compose` in
-`config.yaml`, with paths relative to `~/.config/flight`. For example, to add
-[Mailpit](https://mailpit.axllent.org) at `https://mail.flght.dev`:
+`config.yaml`, with paths relative to `~/.config/flight`, and give a service an
+[`x-flight`](#compose) block for an address. For example, to add
+[Mailpit](https://mailpit.axllent.org) at `https://mailpit.flght.dev`:
 
 ```yaml
 # ~/.config/flight/config.yaml
-services:
-  mail:
-    type: compose
-    origin: http://mailpit:8025
-
 compose:
   - mailpit.yaml
 ```
@@ -940,6 +960,8 @@ compose:
 services:
   mailpit:
     image: axllent/mailpit
+    x-flight:
+      origin: http://mailpit:8025
 ```
 
 In these files, you may use the `FLIGHT_DOMAIN`, `FLIGHT_NETWORK`,

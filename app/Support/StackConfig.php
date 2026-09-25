@@ -27,6 +27,12 @@ abstract class StackConfig
 
     protected ?array $ownComposeFiles = null;
 
+    /**
+     * Where each service with `x-flight` is set, by Flight name, e.g.
+     * `['path' => 'services.web.x-flight', 'file' => '/…/compose.yml']`.
+     */
+    protected array $extensions = [];
+
     public function __construct(protected Container $container) {}
 
     abstract public function file(): string;
@@ -103,23 +109,18 @@ abstract class StackConfig
      */
     public function ownComposeFiles(): array
     {
-        if ($this->ownComposeFiles !== null) {
-            return $this->ownComposeFiles;
-        }
+        $this->load();
 
-        $existing = [];
+        return $this->ownComposeFiles;
+    }
 
-        foreach ($this->load()['compose'] ?? [] as $i => $file) {
-            $path = $this->directory().'/'.$file['path'];
-
-            if (is_file($path)) {
-                $existing[] = $path;
-            } elseif ($file['required']) {
-                throw $this->invalid("Expected {$file['path']} to exist, or to be marked `required: false`.", "compose.{$i}");
-            }
-        }
-
-        return $this->ownComposeFiles = $existing;
+    /**
+     * Where a service is set, e.g. "app", "services.db", or
+     * "services.web.x-flight" in a compose file.
+     */
+    public function servicePath(string $name): string
+    {
+        return $this->extensions[$name]['path'] ?? ($name === self::APP ? self::APP : "services.{$name}");
     }
 
     /**
@@ -157,6 +158,8 @@ abstract class StackConfig
 
         $this->validate($settings);
 
+        $this->ownComposeFiles = $this->existingComposeFiles($settings['compose'] ?? []);
+
         $this->recipe = $this->makeRecipe($this->recipeSetting($settings));
 
         // A string is short for its type: `db: mariadb:11.8`.
@@ -174,7 +177,7 @@ abstract class StackConfig
         $merged = $this->merge($this->recipe?->services() ?? [], $services);
 
         if (array_key_exists(self::APP, $merged)) {
-            throw $this->invalid('Expected another name; "app" is your app, set at the top level as `app:`.', 'services.'.self::APP);
+            throw $this->invalid('Expected another name; "app" is the app, set at the top level as `app:`.', 'services.'.self::APP);
         }
 
         if ($file !== null && ! $this->isMap($file)) {
@@ -191,7 +194,113 @@ abstract class StackConfig
             $services[$name] = $this->service((string) $name, $options);
         }
 
+        foreach ($this->composeExtensions($this->ownComposeFiles) as $name => $options) {
+            if (array_key_exists($name, $services)) {
+                $where = $name === self::APP ? '`app:`' : "services.{$name}";
+
+                throw $this->invalid("Expected \"{$name}\" in one place: {$where} in ".basename($this->file()).', or x-flight here.', $this->servicePath($name));
+            }
+
+            $services = $name === self::APP ? [$name => $options, ...$services] : [...$services, $name => $options];
+        }
+
+        if ($services === []) {
+            throw $this->invalid('Expected a service, such as `app: php:8.4`, or `x-flight` on a service in your compose files.');
+        }
+
         return $this->settings = [...$settings, 'services' => $services];
+    }
+
+    protected function existingComposeFiles(array $files): array
+    {
+        $existing = [];
+
+        foreach ($files as $i => $file) {
+            $path = $this->directory().'/'.$file['path'];
+
+            if (is_file($path)) {
+                $existing[] = $path;
+            } elseif ($file['required']) {
+                throw $this->invalid("Expected {$file['path']} to exist, or to be marked `required: false`.", "compose.{$i}");
+            }
+        }
+
+        return $existing;
+    }
+
+    /**
+     * The services with `x-flight` in the own compose files, keyed by their
+     * Flight name. When a service has `x-flight` in several files, the one
+     * in the file listed last is used as a whole, not merged. Values are
+     * read as written: compose's variables aren't filled in.
+     */
+    protected function composeExtensions(array $files): array
+    {
+        $found = [];
+
+        foreach ($files as $file) {
+            try {
+                $parsed = Yaml::parseFile($file);
+            } catch (ParseException $e) {
+                throw FlightException::make("Could not parse {$file}.", $e->getMessage());
+            }
+
+            foreach ((array) (is_array($parsed) ? $parsed['services'] ?? [] : []) as $service => $definition) {
+                if (is_array($definition) && array_key_exists('x-flight', $definition)) {
+                    $found[(string) $service] = [$file, $definition['x-flight']];
+                }
+            }
+        }
+
+        $services = [];
+
+        foreach ($found as $service => [$file, $options]) {
+            $path = "services.{$service}.x-flight";
+
+            // Registered first, so errors below name the compose file.
+            $this->extensions[$service] = ['path' => $path, 'file' => $file];
+
+            if (! $this->isMap($options)) {
+                throw $this->invalid("Expected where the proxy reaches the service, such as `origin: https://{$service}:8443`.", $path);
+            }
+
+            $app = $this->hasApp() && ($options['app'] ?? $service === self::APP) === true;
+
+            if ($app && isset($services[self::APP])) {
+                throw $this->invalid('Expected one app, but '.$this->extensions[self::APP]['path'].' is the app too.', $path);
+            }
+
+            if (! $app && ! preg_match('/^[a-z0-9][a-z0-9_-]*$/', $service)) {
+                throw $this->invalid('Expected a lowercase service name such as "web"'.($this->hasApp() ? ', or `app: true` to make it the app.' : '.'), $path);
+            }
+
+            // The proxy's labels go on the service the origin names.
+            if (is_string($options['origin'] ?? null) && parse_url($options['origin'], PHP_URL_HOST) !== $service) {
+                throw $this->invalid("Expected the origin to name this service, such as \"https://{$service}:8443\".", "{$path}.origin");
+            }
+
+            if ($app) {
+                unset($this->extensions[$service]);
+                $this->extensions[self::APP] = ['path' => $path, 'file' => $file];
+            }
+
+            if ($this->hasApp()) {
+                unset($options['app']);
+            }
+
+            $services[$app ? self::APP : $service] = ['type' => 'compose', ...$options];
+        }
+
+        return $services;
+    }
+
+    /**
+     * Whether a service with `x-flight` can be the app, by its name or with
+     * `app: true`.
+     */
+    protected function hasApp(): bool
+    {
+        return true;
     }
 
     /**
@@ -234,7 +343,8 @@ abstract class StackConfig
             throw $this->invalid("Expected the version in the type, such as `type: {$example}`.", "{$path}.version");
         }
 
-        $types = $app ? (array) config('flight.app_types') : array_keys((array) config('flight.services'));
+        // Compose services come from `x-flight` in the compose files.
+        $types = $app ? (array) config('flight.app_types') : array_diff(array_keys((array) config('flight.services')), ['compose']);
         $type = $options['type'] ?? null;
 
         if (! is_string($type) || ! preg_match('/^([a-z0-9_-]+)(?::([A-Za-z0-9._-]+))?$/', $type, $match) || ! in_array($match[1], $types, true)) {
@@ -376,10 +486,21 @@ abstract class StackConfig
         }
     }
 
+    /**
+     * A key under a service's `x-flight` is named in its compose file.
+     */
     public function invalid(string $hint, ?string $key = null): FlightException
     {
+        $file = $this->file();
+
+        foreach ($this->extensions as ['path' => $path, 'file' => $source]) {
+            if ($key === $path || str_starts_with((string) $key, $path.'.')) {
+                $file = $source;
+            }
+        }
+
         return FlightException::make(
-            $key === null ? 'Invalid '.$this->file().'.' : "Invalid \"{$key}\" in ".$this->file().'.',
+            $key === null ? "Invalid {$file}." : "Invalid \"{$key}\" in {$file}.",
             $hint,
         );
     }
