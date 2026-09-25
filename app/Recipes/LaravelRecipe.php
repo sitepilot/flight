@@ -38,6 +38,7 @@ class LaravelRecipe extends Recipe
         return [
             'type' => 'php',
             'webroot' => 'public',
+            'extensions' => ['bcmath', 'exif', 'gd', 'intl'],
             ...($workers === [] ? [] : ['workers' => $workers]),
         ];
     }

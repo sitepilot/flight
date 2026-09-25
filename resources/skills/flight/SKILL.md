@@ -108,9 +108,10 @@ compose:                # own compose files, applied after Flight's
 
 ## Recipes
 
-**Laravel** serves `public`. Options, under `recipe: laravel:`, are
-`queue: true` and `scheduler: true`, which add `queue` and `scheduler`
-workers. Point `.env` at the services, e.g. `DB_HOST=db`, `DB_DATABASE=flight`,
+**Laravel** serves `public` and installs the `bcmath`, `exif`, `gd` and
+`intl` extensions. Setting `app.extensions` replaces that list, so repeat them
+when adding one. Options, under `recipe: laravel:`, are `queue: true` and
+`scheduler: true`, which add `queue` and `scheduler` workers. Point `.env` at the services, e.g. `DB_HOST=db`, `DB_DATABASE=flight`,
 `DB_USERNAME=flight`, `DB_PASSWORD=flight`, `REDIS_HOST=cache`, and
 `APP_URL=https://<project>.flght.dev`. Run Vite on the host with
 `npm run dev`.

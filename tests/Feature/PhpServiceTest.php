@@ -242,6 +242,14 @@ it('leaves options a recipe does not set to the service defaults', function () {
         ->and($app['environment']['NGINX_WEBROOT'])->toBe('/var/www/html/public');
 });
 
+it('installs the extensions laravel apps commonly need with the laravel recipe', function () {
+    flightProject(['recipe' => 'laravel']);
+
+    writeProjectCompose();
+
+    expect(file_get_contents(getcwd().'/.flight/app/build/Dockerfile'))->toContain("RUN install-php-extensions bcmath exif gd intl\n");
+});
+
 it('installs extensions and wp-cli in the image when asked', function () {
     flightProject(phpApp(['extensions' => ['mysqli', 'gd'], 'wp_cli' => true]));
 

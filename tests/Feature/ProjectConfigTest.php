@@ -86,7 +86,7 @@ it('reads a string as the type', function () {
 it('keeps the recipe options when its app is written as a string', function () {
     flightProject("recipe: laravel\napp: php:8.3\n");
 
-    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public']);
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public', 'extensions' => ['bcmath', 'exif', 'gd', 'intl']]);
 });
 
 it('rejects another type than the recipe sets', function (string $yaml, string $key) {
@@ -159,20 +159,20 @@ it('takes the services from a recipe', function () {
 
     expect(project()->recipe()->name())->toBe('laravel')
         ->and(project()->services())->toBe([
-            'app' => ['type' => 'php', 'webroot' => 'public'],
+            'app' => ['type' => 'php', 'webroot' => 'public', 'extensions' => ['bcmath', 'exif', 'gd', 'intl']],
         ]);
 });
 
 it('overrides a recipe option by option', function () {
     flightProject(['recipe' => 'laravel', 'app' => ['type' => 'php:8.3', 'hostnames' => ['admin']]]);
 
-    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public', 'hostnames' => ['admin']]);
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public', 'extensions' => ['bcmath', 'exif', 'gd', 'intl'], 'hostnames' => ['admin']]);
 });
 
 it('keeps the recipe app for an app without options', function () {
     flightProject(['recipe' => 'laravel', 'app' => ['type' => 'php:8.3']]);
 
-    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public']);
+    expect(project()->services()['app'])->toBe(['type' => 'php', 'version' => '8.3', 'webroot' => 'public', 'extensions' => ['bcmath', 'exif', 'gd', 'intl']]);
 });
 
 it('puts the app first, before the services', function () {
@@ -266,6 +266,7 @@ it('adds a queue worker with the laravel recipe queue option', function () {
         'type' => 'php',
         'version' => '8.3',
         'webroot' => 'public',
+        'extensions' => ['bcmath', 'exif', 'gd', 'intl'],
         'workers' => ['queue' => 'php artisan queue:listen --tries=1 --timeout=0'],
     ]);
 });
