@@ -37,7 +37,7 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
 
     public function handle(ProjectStack $stack, Compose $compose, Tunnel $tunnel): int
     {
-        $service = $this->sharedService($stack);
+        $service = $this->routedService($stack, $this->argument('service'), 'share');
 
         $running = $compose->run($stack, ['ps', '--status', 'running', '--quiet', $service->composeName()]);
 
@@ -114,21 +114,6 @@ class ShareCommand extends ProjectCommand implements SignalableCommandInterface
         $this->tunnel->signal(\SIGINT);
 
         return false;
-    }
-
-    protected function sharedService(ProjectStack $stack): Service&Routed
-    {
-        $name = $this->service($stack, $this->argument('service'));
-        $service = $stack->service($name);
-
-        if (! $service instanceof Routed) {
-            throw FlightException::make(
-                "The \"{$name}\" service has no URL to share.",
-                'Share a service that is served at a URL, such as the app.',
-            );
-        }
-
-        return $service;
     }
 
     protected function sharedSummary(ProjectStack $stack, Service&Routed $service, string $url): void

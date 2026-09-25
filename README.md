@@ -186,6 +186,17 @@ and the `.flight` directory, after asking:
 flight destroy
 ```
 
+The `open` command opens your app in the browser, or another service with an
+address when you name it:
+
+```shell
+flight open
+flight open mailpit
+```
+
+Flight uses the command in `$BROWSER` when it is set. Under WSL, it opens the
+Windows browser, which trusts Flight's certificate.
+
 <a name="running-commands"></a>
 ### Running Commands
 

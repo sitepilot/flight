@@ -7,6 +7,8 @@ namespace App\Commands\Project;
 use App\Commands\FlightCommand;
 use App\Exceptions\FlightException;
 use App\Provisioning\Provisioner;
+use App\Services\Routed;
+use App\Services\Service;
 use App\Stacks\ProjectStack;
 use Closure;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -33,6 +35,25 @@ abstract class ProjectCommand extends FlightCommand
         }
 
         return $name;
+    }
+
+    /**
+     * The $verb, e.g. "share", completes the error for a service without a
+     * URL.
+     */
+    protected function routedService(ProjectStack $stack, ?string $name, string $verb): Service&Routed
+    {
+        $name = $this->service($stack, $name);
+        $service = $stack->service($name);
+
+        if (! $service instanceof Routed) {
+            throw FlightException::make(
+                "The \"{$name}\" service has no URL to {$verb}.",
+                ucfirst($verb).' a service that is served at a URL, such as the app.',
+            );
+        }
+
+        return $service;
     }
 
     protected function passthrough(): Closure
